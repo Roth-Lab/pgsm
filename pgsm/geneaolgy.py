@@ -22,7 +22,7 @@ def get_clustering(particle):
     clusters = defaultdict(list)
     particles = reversed(list(iter_particles(particle)))
     for idx, p in enumerate(particles):
-        clusters[p.value.block_idx].append(idx)
+        clusters[p.block_idx].append(idx)
     return clusters
 
 
@@ -34,3 +34,22 @@ def get_cluster_labels(particle):
         for idx in block:
             Z[idx] = z
     return Z
+
+def get_constrained_path(clustering, data, kernel):
+    constrained_path = []
+    clustering = relabel_clustering(clustering)
+    for c, x in zip(clustering, data):
+        if len(constrained_path) == 0:
+            particle = kernel.create_particle(c, x, None)
+        else:
+            particle = kernel.create_particle(c, x, constrained_path[-1])
+        constrained_path.append(particle)
+    return constrained_path
+
+def relabel_clustering(clustering):
+    relabeled = []
+    orig_block_ids, first_index = np.unique(clustering, return_index=True)
+    blocks = list(orig_block_ids[np.argsort(first_index)])
+    for c in clustering:
+        relabeled.append(blocks.index(c))
+    return relabeled

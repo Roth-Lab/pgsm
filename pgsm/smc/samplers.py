@@ -30,15 +30,16 @@ class SMCSampler(object):
         else:
             particles = new_particles
         return particles
+        
+    def sample(self, data, kernel):
+        raise NotImplemented()
 
 
 class SimpleSMCSampler(SMCSampler):
-    """ Simple SMC sampler. Does conditional resampling when the relative ESS falls below threshold.
-    """
 
     def sample(self, data, kernel):
-        particles = [kernel.create_initial_particle() for _ in range(self.num_particles)]
-        for data_point in data:
+        particles = [kernel.create_initial_particle(data[0]) for _ in range(self.num_particles)]
+        for data_point in data[1:]:
             new_particles = []
             for p in particles:
                 new_particles.append(kernel.propose(data_point, p))
@@ -48,14 +49,16 @@ class SimpleSMCSampler(SMCSampler):
 
 class ParticleGibbsSampler(SMCSampler):
 
-    def sample(self, constrained_path, data, kernel):
-        particles = [kernel.create_initial_particle(data[0]) for _ in range(self.num_particles)]
+    def sample(self, data, kernel):
+        constrained_path = kernel.constrained_path
+        particles = [kernel.create_initial_particle(data[0]) for _ in range(self.num_particles - 1)]
+        particles.append(constrained_path[0])
         for i in range(1, data.shape[0]):
             new_particles = []
             for p_idx in range(self.num_particles - 1):
                 new_particles.append(kernel.propose(data[i], particles[p_idx]))
-            new_particles.append(constrained_path[i + 1])
+            new_particles.append(constrained_path[i])
             particles = self.resample_if_necessary(new_particles)
             # Overwrite first particle with constrained path
-            particles[-1] = constrained_path[i + 1].copy()
+            particles[-1] = constrained_path[i].copy()
         return particles
