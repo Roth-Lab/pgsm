@@ -8,7 +8,7 @@ from pgsm.math_utils import exp_normalize
 
 class ParticleGibbsSplitMerge(object):
 
-    def __init__(self, kernel, pgs, num_anchors=2):
+    def __init__(self, kernel, pgs, num_anchors=None):
         self.kernel = kernel
         self.pgs = pgs
         
@@ -35,7 +35,11 @@ class ParticleGibbsSplitMerge(object):
         return particles[particle_idx]
     
     def _setup_split_merge(self, clustering):
-        anchors = np.random.choice(np.arange(len(clustering)), replace=False, size=self.num_anchors)
+        if self.num_anchors is None:
+            num_anchors = np.random.randint(2, 10)
+        else:
+            num_anchors = self.num_anchors
+        anchors = np.random.choice(np.arange(len(clustering)), replace=False, size=num_anchors)
         anchor_clusters = set([clustering[a] for a in anchors])
         sigma = set()
         for a in anchor_clusters:
