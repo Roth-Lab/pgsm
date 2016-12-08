@@ -2,8 +2,8 @@ from __future__ import division
 
 import numpy as np
 
-from pgsm.geneaolgy import get_cluster_labels, relabel_clustering
 from pgsm.math_utils import exp_normalize
+from pgsm.particle_utils import get_cluster_labels, relabel_clustering
 
 
 class ParticleGibbsSplitMerge(object):

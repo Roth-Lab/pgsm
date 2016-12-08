@@ -5,9 +5,8 @@ Created on 8 Dec 2016
 '''
 import numpy as np
 
-from pgsm.utils import setup_split_merge
 from pgsm.math_utils import discrete_rvs, exp_normalize, log_normalize
-from pgsm.geneaolgy import relabel_clustering
+from pgsm.utils import relabel_clustering, setup_split_merge
 
 
 class SequentiallyAllocatedMergeSplitSampler(object):
@@ -74,4 +73,5 @@ class SequentiallyAllocatedMergeSplitSampler(object):
         return clustering, mh_factor        
     
     def _log_p(self, block_sizes, params):
-        return self.partition_prior.log_likelihood(block_sizes) + sum([self.dist.log_marginal_likelihood(x) for x in params])
+        return self.partition_prior.log_likelihood(block_sizes) + \
+            sum([self.dist.log_marginal_likelihood(x) for x in params])

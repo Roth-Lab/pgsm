@@ -5,8 +5,8 @@ from scipy.misc import logsumexp as log_sum_exp
 import numpy as np
 import random
 
-from pgsm.geneaolgy import get_constrained_path
 from pgsm.math_utils import exp_normalize
+from pgsm.particle_utils import get_constrained_path
 
 
 class SplitMergeParticle(object):

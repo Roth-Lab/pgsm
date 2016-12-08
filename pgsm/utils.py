@@ -6,6 +6,15 @@ Created on 8 Dec 2016
 import numpy as np
 
 
+def relabel_clustering(clustering):
+    relabeled = []
+    orig_block_ids, first_index = np.unique(clustering, return_index=True)
+    blocks = list(orig_block_ids[np.argsort(first_index)])
+    for c in clustering:
+        relabeled.append(blocks.index(c))
+    return np.array(relabeled, dtype=np.int)
+
+
 def setup_split_merge(clustering, num_anchors):
     clustering = np.array(clustering, dtype=np.int)
     num_data_points = len(clustering)

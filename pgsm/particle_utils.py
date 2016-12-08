@@ -4,6 +4,8 @@ from collections import defaultdict
 
 import numpy as np
 
+from pgsm.utils import relabel_clustering
+
 
 def iter_particles(particle):
     while particle is not None:
@@ -46,10 +48,3 @@ def get_constrained_path(clustering, data, kernel):
         constrained_path.append(particle)
     return constrained_path
 
-def relabel_clustering(clustering):
-    relabeled = []
-    orig_block_ids, first_index = np.unique(clustering, return_index=True)
-    blocks = list(orig_block_ids[np.argsort(first_index)])
-    for c in clustering:
-        relabeled.append(blocks.index(c))
-    return np.array(relabeled, dtype=np.int)
