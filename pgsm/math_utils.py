@@ -14,7 +14,7 @@ def exp_normalize(log_p):
 
 
 @numba.jit(nopython=True)
-def cholesky_update(L, x, alpha=1, inplace=False):
+def cholesky_update(L, x, alpha=1, inplace=True):
     """ Rank one update of a Cholesky factorized matrix.
     """
     dim = len(x)
