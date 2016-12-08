@@ -7,11 +7,16 @@ import numba
 import numpy as np
 
 
+def discrete_rvs(p):
+    return np.random.multinomial(1, p).argmax()
+
 def exp_normalize(log_p):
     log_p = np.array(log_p)
-    p = np.exp(log_p - log_sum_exp(log_p))
+    p = np.exp(log_normalize(log_p))
     return p / p.sum()
 
+def log_normalize(log_p):
+    return log_p - log_sum_exp(log_p)
 
 @numba.jit(nopython=True)
 def cholesky_update(L, x, alpha=1, inplace=True):
