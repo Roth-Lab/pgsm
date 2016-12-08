@@ -35,15 +35,18 @@ class ParticleGibbsSplitMerge(object):
         return particles[particle_idx]
     
     def _setup_split_merge(self, clustering):
+        num_data_points = len(clustering)
         if self.num_anchors is None:
-            num_anchors = np.random.randint(2, 10)
+            num_anchors = np.random.poisson(0.8) + 2
         else:
             num_anchors = self.num_anchors
-        anchors = np.random.choice(np.arange(len(clustering)), replace=False, size=num_anchors)
+        num_anchors = min(num_anchors, num_data_points)
+        print num_anchors
+        anchors = np.random.choice(np.arange(num_data_points), replace=False, size=num_anchors)
         anchor_clusters = set([clustering[a] for a in anchors])
         sigma = set()
-        for a in anchor_clusters:
-            sigma.update(np.argwhere(clustering == a).flatten())
+        for c in anchor_clusters:
+            sigma.update(np.argwhere(clustering == c).flatten())
         sigma = list(sigma)
         for x in anchors:
             sigma.remove(x)
