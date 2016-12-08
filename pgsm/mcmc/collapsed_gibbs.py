@@ -18,23 +18,18 @@ class CollapsedGibbsSampler(object):
         self.dist = dist
         self.partition_prior = partition_prior
 
-    def sample(self, data, init_clustering=None, num_iters=1000):
-        clustering, tables = self._init_clustering(data, init_clustering)
+    def sample(self, clustering, data, num_iters=1000):
+        tables = self._get_tables(clustering, data)
         for _ in range(num_iters):
             clustering, tables = self._resample_params(clustering, data, tables)
         return clustering
 
-    def _init_clustering(self, data, init_clustering):
-        if init_clustering is None:
-            clustering = np.arange(data.shape[0])
-            tables = [Table([i, ], self.dist.create_params(x)) for i, x in enumerate(data)]
-        else:
-            clustering = init_clustering
-            tables = []
-            for z in np.unique(init_clustering):
-                idx = np.argwhere(init_clustering == z).flatten()
-                tables.append(Table(list(idx), self.dist.create_params(data[idx])))
-        return clustering, tables
+    def _get_tables(self, clustering, data):
+        tables = []
+        for z in np.unique(clustering):
+            idx = np.argwhere(clustering == z).flatten()
+            tables.append(Table(list(idx), self.dist.create_params(data[idx])))
+        return tables
 
     def _resample_params(self, clustering, data, tables):
         num_data_points = data.shape[0]
@@ -49,8 +44,8 @@ class CollapsedGibbsSampler(object):
 
             log_p = []
             new_params = self.dist.create_params(x)
-            log_p.append(self.partition_prior.log_tau_1(1) + self.partition_prior.log_tau_2(1) +
-                         self.dist.log_marginal_likelihood(new_params))
+            log_p.append(self.partition_prior.log_tau_1(1) + self.partition_prior.log_tau_2(1) + 
+                self.dist.log_marginal_likelihood(new_params))
             for table in tables:
                 if table.dish.ss.N == 0:
                     continue
