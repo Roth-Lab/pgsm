@@ -10,6 +10,7 @@ from pgsm.utils import relabel_clustering, setup_split_merge
 
 
 class SequentiallyAllocatedMergeSplitSampler(object):
+
     def __init__(self, dist, partition_prior):
         self.dist = dist
         self.partition_prior = partition_prior
@@ -18,9 +19,9 @@ class SequentiallyAllocatedMergeSplitSampler(object):
         for _ in range(num_iters):
             clustering = self._sample(clustering, data)
         return clustering
-    
+
     def _sample(self, clustering, data):
-        anchors, sigma = setup_split_merge(clustering, 2)        
+        anchors, sigma = setup_split_merge(clustering, 2)
         _, unchanged_block_sizes = np.unique([x for x in clustering if x not in sigma], return_counts=True)
         merge_clustering, merge_mh_factor = self._merge(data, sigma, unchanged_block_sizes)
         split_clustering, split_mh_factor = self._split(data, sigma, unchanged_block_sizes)
@@ -33,13 +34,13 @@ class SequentiallyAllocatedMergeSplitSampler(object):
             reverse_factor = split_mh_factor
             restricted_clustering = np.array(merge_clustering, dtype=int)
         log_ratio = forward_factor - reverse_factor
-        u = np.random.random()       
+        u = np.random.random()
         if log_ratio >= np.log(u):
             max_idx = clustering.max()
             clustering[sigma] = restricted_clustering + max_idx + 1
             clustering = relabel_clustering(clustering)
         return clustering
-    
+
     def _merge(self, data, sigma, unchanged_block_sizes):
         clustering = [0 for _ in range(len(sigma))]
         log_q = 0
@@ -48,7 +49,7 @@ class SequentiallyAllocatedMergeSplitSampler(object):
         log_p = self._log_p(block_sizes, params)
         mh_factor = log_p - log_q
         return clustering, mh_factor
-    
+
     def _split(self, data, sigma, unchanged_block_sizes):
         clustering = [0, 1]
         log_q = 0
@@ -70,8 +71,8 @@ class SequentiallyAllocatedMergeSplitSampler(object):
         block_sizes = list(unchanged_block_sizes) + [x.ss.N for x in params]
         log_p = self._log_p(block_sizes, params)
         mh_factor = log_p - log_q
-        return clustering, mh_factor        
-    
+        return clustering, mh_factor
+
     def _log_p(self, block_sizes, params):
         return self.partition_prior.log_likelihood(block_sizes) + \
             sum([self.dist.log_marginal_likelihood(x) for x in params])

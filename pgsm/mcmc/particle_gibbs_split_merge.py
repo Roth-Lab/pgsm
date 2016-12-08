@@ -11,7 +11,7 @@ class ParticleGibbsSplitMerge(object):
     def __init__(self, kernel, pgs, num_anchors=None):
         self.kernel = kernel
         self.pgs = pgs
-        
+
         self.num_anchors = num_anchors
 
     def sample(self, clustering, data, num_iters=1000):
@@ -22,18 +22,18 @@ class ParticleGibbsSplitMerge(object):
             sampled_particle = self._sample_particle(particles)
             self._get_updated_clustering(clustering, sampled_particle, sigma)
         return clustering
-    
+
     def _get_updated_clustering(self, clustering, particle, sigma):
         restricted_clustering = get_cluster_labels(particle)
         max_idx = clustering.max()
         clustering[sigma] = restricted_clustering + max_idx + 1
         return relabel_clustering(clustering)
-    
+
     def _sample_particle(self, particles):
         probs = exp_normalize([x.log_w for x in particles])
         particle_idx = np.random.multinomial(1, probs).argmax()
         return particles[particle_idx]
-    
+
     def _setup_split_merge(self, clustering):
         num_data_points = len(clustering)
         if self.num_anchors is None:

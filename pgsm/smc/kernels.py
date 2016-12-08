@@ -17,11 +17,11 @@ class SplitMergeParticle(object):
         self.log_w = log_w
         self.parent_particle = parent_particle
         self._posterior_params = posterior_params
-    
+
     @property
     def posterior_params(self):
         return [x.copy() for x in self._posterior_params]
-    
+
     def copy(self):
         return SplitMergeParticle(self.block_idx, self.log_g, self.log_w, self.parent_particle, self.posterior_params)
 
@@ -31,7 +31,7 @@ class SMCKernel(object):
     def __init__(self, dist, partition_prior):
         self.dist = dist
         self.partition_prior = partition_prior
-  
+
     def create_initial_particle(self, data_point):
         return self.create_particle(0, data_point, None)
 
@@ -40,7 +40,7 @@ class SMCKernel(object):
         log_g = self._compute_log_intermediate_target(posterior_params)
         if log_q is None:
             log_q = self._get_log_q(data_point, parent_particle)
-        log_q_norm = log_sum_exp(log_q.values())       
+        log_q_norm = log_sum_exp(log_q.values())
         if parent_particle is None:
             log_w = 0
         else:
@@ -58,20 +58,20 @@ class SMCKernel(object):
             random.seed(seed)
             np.random.seed(seed)
         return self._propose(data_point, parent_particle)
-    
+
     def setup(self, anchors, clustering, data, sigma):
         self.num_anchors = len(anchors)
-        
+
         c_size = len(np.unique(clustering))
         c_bar_size = len(np.unique(anchors))
         self.num_cluster_diff = c_size - c_bar_size
-        
+
         self.constrained_path = get_constrained_path(clustering[sigma], data[sigma], self)
-    
+
     def _can_add_block(self, posterior_params):
         num_data_points = sum([x.ss.N for x in posterior_params])
         return (num_data_points < self.num_anchors) and (len(posterior_params) < self.num_anchors)
-    
+
     def _compute_log_intermediate_target(self, posterior_params):
         block_sizes = [x.ss.N for x in posterior_params]
         log_g = self.partition_prior.log_tau_1(self.num_cluster_diff + len(block_sizes)) + \
@@ -84,12 +84,12 @@ class SMCKernel(object):
             posterior_params = []
         else:
             posterior_params = parent_particle.posterior_params
-        
+
         if block_idx > (len(posterior_params) - 1):
             posterior_params.append(self.dist.create_params(data_point))
         else:
             posterior_params[block_idx].increment(data_point)
-        
+
         return posterior_params
 
     def _propose(self, data_point, parent_particle):
@@ -106,16 +106,16 @@ class NaiveSplitMergeKernel(SMCKernel):
             posterior_params = []
         else:
             posterior_params = parent_particle.posterior_params
-        
+
         log_q = {}
-        
+
         for block_idx, _ in enumerate(posterior_params):
             log_q[block_idx] = 0
-        
+
         if self._can_add_block(posterior_params):
             block_idx = len(posterior_params)
             log_q[block_idx] = 0
-        
+
         return log_q
 
 
@@ -126,17 +126,17 @@ class FullyAdaptedSplitMergeKernel(SMCKernel):
             posterior_params = []
         else:
             posterior_params = parent_particle.posterior_params
-        
+
         log_q = {}
-        
-        for block_idx, params in enumerate(posterior_params):            
+
+        for block_idx, params in enumerate(posterior_params):
             params.increment(data_point)
             log_q[block_idx] = self._compute_log_intermediate_target(posterior_params)
             params.decrement(data_point)
-        
+
         if self._can_add_block(posterior_params):
             block_idx = len(posterior_params)
             posterior_params.append(self.dist.create_params(data_point))
             log_q[block_idx] = self._compute_log_intermediate_target(posterior_params)
-        
+
         return log_q

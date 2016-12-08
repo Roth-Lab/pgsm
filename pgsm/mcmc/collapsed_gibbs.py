@@ -44,8 +44,8 @@ class CollapsedGibbsSampler(object):
 
             log_p = []
             new_params = self.dist.create_params(x)
-            log_p.append(self.partition_prior.log_tau_1(1) + self.partition_prior.log_tau_2(1) + 
-                self.dist.log_marginal_likelihood(new_params))
+            log_p.append(self.partition_prior.log_tau_1(1) + self.partition_prior.log_tau_2(1) +
+                         self.dist.log_marginal_likelihood(new_params))
             for table in tables:
                 if table.dish.ss.N == 0:
                     continue

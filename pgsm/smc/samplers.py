@@ -30,7 +30,7 @@ class SMCSampler(object):
         else:
             particles = new_particles
         return particles
-        
+
     def sample(self, data, kernel):
         raise NotImplemented()
 

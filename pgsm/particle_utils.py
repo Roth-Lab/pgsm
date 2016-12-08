@@ -37,6 +37,7 @@ def get_cluster_labels(particle):
             Z[idx] = z
     return Z
 
+
 def get_constrained_path(clustering, data, kernel):
     constrained_path = []
     clustering = relabel_clustering(clustering)
@@ -47,4 +48,3 @@ def get_constrained_path(clustering, data, kernel):
             particle = kernel.create_particle(c, x, constrained_path[-1])
         constrained_path.append(particle)
     return constrained_path
-

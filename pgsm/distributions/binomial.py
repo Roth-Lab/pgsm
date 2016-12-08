@@ -80,7 +80,7 @@ class Binomial(object):
 
     def log_marginal_likelihood(self, params):
         return 0 + log_beta(params.a, params.b) - log_beta(self.priors.a, self.priors.b)
-    
+
     def incremental_log_marginal_likelihood(self, data_point, params):
         params.increment(data_point)
         ll = self.log_marginal_likelihood(params)
