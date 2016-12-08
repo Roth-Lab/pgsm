@@ -52,4 +52,4 @@ def relabel_clustering(clustering):
     blocks = list(orig_block_ids[np.argsort(first_index)])
     for c in clustering:
         relabeled.append(blocks.index(c))
-    return relabeled
+    return np.array(relabeled, dtype=np.int)
