@@ -113,7 +113,7 @@ class SMCKernel(object):
 
     def _propose(self, data_point, parent_particle):
         log_q = self._get_log_q(data_point, parent_particle)
-        block_probs, log_q_norm = exp_normalize(log_q.values(), return_log_norm=True)
+        block_probs, log_q_norm = exp_normalize(log_q.values())
         block_idx = np.random.choice(log_q.keys(), p=block_probs)
         return self.create_particle(block_idx, data_point, parent_particle, log_q=log_q, log_q_norm=log_q_norm)
 
@@ -155,6 +155,7 @@ class FullyAdaptedSplitMergeKernel(SMCKernel):
         if self._can_add_block(posterior_params):
             block_idx = len(posterior_params)
             params = self.dist.create_params(data_point)
+            # TODO: Check this missing global cluster diff
             log_q[block_idx] = self.partition_prior.log_tau_1_diff(len(posterior_params)) + \
                 self.partition_prior.log_tau_2_diff(1) + self.dist.log_marginal_likelihood(params)
 

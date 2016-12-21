@@ -119,13 +119,6 @@ class MultivariateNormal(object):
             0.5 * (self.priors.nu * self.priors.log_det_S - params.nu * params.log_det_S) + \
             np.sum(log_gamma(0.5 * (params.nu + 1 - d)) - log_gamma(0.5 * (self.priors.nu + 1 - d)))
 
-#     def log_marginal_likelihood_diff(self, data_point, params):
-#         params.increment(data_point)
-#         diff = self.log_marginal_likelihood(params)
-#         params.decrement(data_point)
-#         diff -= self.log_marginal_likelihood(params)
-#         return diff
-
     def log_marginal_likelihood_diff(self, data_point, params):
         '''
         Compute difference between marginal log likelihood with and without data point.

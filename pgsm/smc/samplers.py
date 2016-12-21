@@ -18,7 +18,7 @@ class SMCSampler(object):
         self.verbose = verbose
 
     def resample_if_necessary(self, new_particles):
-        particle_probs = exp_normalize([p.log_w for p in new_particles])
+        particle_probs, _ = exp_normalize([float(p.log_w) for p in new_particles])
         ess = 1 / np.sum(np.square(particle_probs))
         if (ess / self.num_particles) <= self.resample_threshold:
             particles = []

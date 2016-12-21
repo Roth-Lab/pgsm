@@ -1,6 +1,6 @@
 from __future__ import division
 
-from scipy.misc import logsumexp as log_sum_exp
+# from scipy.misc import logsumexp as log_sum_exp
 
 import math
 import numba
@@ -11,22 +11,36 @@ def discrete_rvs(p):
     return np.random.multinomial(1, p).argmax()
 
 
-def exp_normalize(log_p, return_log_norm=False):
+@numba.jit(cache=True, nopython=True)
+def exp_normalize(log_p):
     log_p = np.array(log_p)
     log_norm = log_sum_exp(log_p)
     p = np.exp(log_p - log_norm)
     p / p.sum()
-    if return_log_norm:
-        return p, log_norm
-    else:
-        return p
+    return p, log_norm
+
+
+@numba.jit(cache=True, nopython=True)
+def log_sum_exp(log_X):
+    '''
+    Given a list of values in log space, log_X. Compute exp(log_X[0] + log_X[1] + ... log_X[n])
+
+    Numerically safer than naive method.
+    '''
+    max_exp = np.max(log_X)
+    if np.isinf(max_exp):
+        return max_exp
+    total = 0
+    for x in log_X:
+        total += np.exp(x - max_exp)
+    return np.log(total) + max_exp
 
 
 def log_normalize(log_p):
     return log_p - log_sum_exp(log_p)
 
 
-@numba.jit(nopython=True)
+@numba.jit(cache=True, nopython=True)
 def cholesky_update(L, x, alpha=1, inplace=True):
     """ Rank one update of a Cholesky factorized matrix.
     """
@@ -45,7 +59,7 @@ def cholesky_update(L, x, alpha=1, inplace=True):
     return L
 
 
-@numba.jit(nopython=True)
+@numba.jit(cache=True, nopython=True)
 def cholesky_log_det(X):
     return 2 * np.sum(np.log(np.diag(X)))
 
