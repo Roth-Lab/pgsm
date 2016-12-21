@@ -72,22 +72,18 @@ class MultivariateNormalParameters(object):
         return copy
 
     def decrement(self, x):
-        self.S_chol = cholesky_update(self.S_chol, np.sqrt(self.r) * self.u, 1)
         self.ss.decrement(x)
+        self.S_chol = cholesky_update(self.S_chol, np.sqrt(self.r / (self.r - 1)) * (x - self.u), -1)
         self._update_nu()
         self._update_r()
         self._update_u()
-        self.S_chol = cholesky_update(self.S_chol, x, -1)
-        self.S_chol = cholesky_update(self.S_chol, np.sqrt(self.r) * self.u, -1)
 
     def increment(self, x):
-        self.S_chol = cholesky_update(self.S_chol, np.sqrt(self.r) * self.u, 1)
         self.ss.increment(x)
         self._update_nu()
         self._update_r()
         self._update_u()
-        self.S_chol = cholesky_update(self.S_chol, x, 1)
-        self.S_chol = cholesky_update(self.S_chol, np.sqrt(self.r) * self.u, -1)
+        self.S_chol = cholesky_update(self.S_chol, np.sqrt(self.r / (self.r - 1)) * (x - self.u), 1)
 
     def _update_nu(self):
         self.nu = self.priors.nu + self.ss.N
