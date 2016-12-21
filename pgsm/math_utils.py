@@ -40,6 +40,11 @@ def cholesky_update(L, x, alpha=1, inplace=True):
     return L
 
 
+@numba.jit(nopython=True)
+def cholesky_log_det(X):
+    return 2 * np.sum(np.log(np.diag(X)))
+
+
 def log_factorial(x):
     return log_gamma(x + 1)
 
