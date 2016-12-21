@@ -47,13 +47,13 @@ class CollapsedGibbsSampler(object):
             log_p.append(self.partition_prior.log_tau_1(1) + self.partition_prior.log_tau_2(1) +
                          self.dist.log_marginal_likelihood(new_params))
             for table in tables:
-                if table.dish.ss.N == 0:
+                if table.dish.suff_stats.N == 0:
                     continue
                 table.dish.increment(x)
-                log_p_c = self.partition_prior.log_tau_2(table.dish.ss.N) + \
+                log_p_c = self.partition_prior.log_tau_2(table.dish.suff_stats.N) + \
                     self.dist.log_marginal_likelihood(table.dish)
                 table.dish.decrement(x)
-                log_p_c -= self.partition_prior.log_tau_2(table.dish.ss.N) + \
+                log_p_c -= self.partition_prior.log_tau_2(table.dish.suff_stats.N) + \
                     self.dist.log_marginal_likelihood(table.dish)
                 log_p.append(log_p_c)
 
@@ -68,7 +68,7 @@ class CollapsedGibbsSampler(object):
         return clustering, tables
 
     def _prune(self, clustering, tables):
-        tables = [x for x in tables if x.dish.ss.N > 0]
+        tables = [x for x in tables if x.dish.suff_stats.N > 0]
         for z, table in enumerate(tables):
             for i in table.customers:
                 clustering[i] = z
