@@ -42,31 +42,31 @@ class BinomialPriors(object):
 
 class BinomialParameters(object):
 
-    def __init__(self, priors, ss):
+    def __init__(self, priors, suff_stats):
         self.priors = priors
-        self.ss = ss
-        self.a = priors.a + ss.a
-        self.b = priors.b + ss.b
+        self.suff_stats = suff_stats
+        self.a = priors.a + suff_stats.a
+        self.b = priors.b + suff_stats.b
 
     def copy(self):
         copy = BinomialParameters.__new__(BinomialParameters)
         copy.priors = self.priors
-        copy.ss = self.ss.copy()
+        copy.suff_stats = self.suff_stats.copy()
         copy.a = self.a
         copy.b = self.b
         return copy
 
     def decrement(self, x):
-        self.ss.decrement(x)
+        self.suff_stats.decrement(x)
         self._update()
 
     def increment(self, x):
-        self.ss.increment(x)
+        self.suff_stats.increment(x)
         self._update()
 
     def _update(self):
-        self.a = self.priors.a + self.ss.a
-        self.b = self.priors.b + self.ss.b
+        self.a = self.priors.a + self.suff_stats.a
+        self.b = self.priors.b + self.suff_stats.b
 
 
 class Binomial(object):
@@ -75,8 +75,8 @@ class Binomial(object):
         self.priors = priors
 
     def create_params(self, x):
-        ss = BinomialSufficientStatistics(x)
-        return BinomialParameters(self.priors, ss)
+        suff_stats = BinomialSufficientStatistics(x)
+        return BinomialParameters(self.priors, suff_stats)
 
     def log_marginal_likelihood(self, params):
         return 0 + log_beta(params.a, params.b) - log_beta(self.priors.a, self.priors.b)

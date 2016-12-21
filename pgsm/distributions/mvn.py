@@ -45,9 +45,9 @@ class MultivariateNormalPriors(object):
 
 class MultivariateNormalParameters(object):
 
-    def __init__(self, priors, ss):
+    def __init__(self, priors, suff_stats):
         self.priors = priors
-        self.ss = ss
+        self.suff_stats = suff_stats
         self._update_nu()
         self._update_r()
         self._update_u()
@@ -64,7 +64,7 @@ class MultivariateNormalParameters(object):
     def copy(self):
         copy = MultivariateNormalParameters.__new__(MultivariateNormalParameters)
         copy.priors = self.priors
-        copy.ss = self.ss.copy()
+        copy.suff_stats = self.suff_stats.copy()
         copy.nu = self.nu
         copy.r = self.r
         copy.u = self.u.copy()
@@ -72,30 +72,30 @@ class MultivariateNormalParameters(object):
         return copy
 
     def decrement(self, x):
-        self.ss.decrement(x)
+        self.suff_stats.decrement(x)
         self.S_chol = cholesky_update(self.S_chol, np.sqrt(self.r / (self.r - 1)) * (x - self.u), -1)
         self._update_nu()
         self._update_r()
         self._update_u()
 
     def increment(self, x):
-        self.ss.increment(x)
+        self.suff_stats.increment(x)
         self._update_nu()
         self._update_r()
         self._update_u()
         self.S_chol = cholesky_update(self.S_chol, np.sqrt(self.r / (self.r - 1)) * (x - self.u), 1)
 
     def _update_nu(self):
-        self.nu = self.priors.nu + self.ss.N
+        self.nu = self.priors.nu + self.suff_stats.N
 
     def _update_r(self):
-        self.r = self.priors.r + self.ss.N
+        self.r = self.priors.r + self.suff_stats.N
 
     def _update_u(self):
-        self.u = ((self.priors.r * self.priors.u) + self.ss.X) / self.r
+        self.u = ((self.priors.r * self.priors.u) + self.suff_stats.X) / self.r
 
     def _update_S_chol(self):
-        S = self.priors.S + self.ss.S + \
+        S = self.priors.S + self.suff_stats.S + \
             self.priors.r * outer_product(self.priors.u, self.priors.u) - \
             self.r * outer_product(self.u, self.u)
         self.S_chol = np.linalg.cholesky(S)
@@ -107,14 +107,21 @@ class MultivariateNormal(object):
         self.priors = priors
 
     def create_params(self, x):
-        ss = MultivariateNormalSufficientStatistics(x)
-        return MultivariateNormalParameters(self.priors, ss)
+        suff_stats = MultivariateNormalSufficientStatistics(x)
+        return MultivariateNormalParameters(self.priors, suff_stats)
 
     def log_marginal_likelihood(self, params):
         D = self.priors.dim
-        N = params.ss.N
+        N = params.suff_stats.N
         d = np.arange(1, D + 1)
         return -0.5 * N * D * np.log(np.pi) + \
             0.5 * D * (np.log(self.priors.r) - np.log(params.r)) + \
             0.5 * (self.priors.nu * self.priors.log_det_S - params.nu * params.log_det_S) + \
             np.sum(log_gamma(0.5 * (params.nu + 1 - d)) - log_gamma(0.5 * (self.priors.nu + 1 - d)))
+
+    def log_marginal_likelihood_diff(self, data_point, params):
+        params.increment(data_point)
+        diff = self.log_marginal_likelihood(params)
+        params.decrement(data_point)
+        diff -= self.log_marginal_likelihood(params)
+        return diff
