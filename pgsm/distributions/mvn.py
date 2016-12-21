@@ -119,9 +119,33 @@ class MultivariateNormal(object):
             0.5 * (self.priors.nu * self.priors.log_det_S - params.nu * params.log_det_S) + \
             np.sum(log_gamma(0.5 * (params.nu + 1 - d)) - log_gamma(0.5 * (self.priors.nu + 1 - d)))
 
+#     def log_marginal_likelihood_diff(self, data_point, params):
+#         params.increment(data_point)
+#         diff = self.log_marginal_likelihood(params)
+#         params.decrement(data_point)
+#         diff -= self.log_marginal_likelihood(params)
+#         return diff
+
     def log_marginal_likelihood_diff(self, data_point, params):
+        '''
+        Compute difference between marginal log likelihood with and without data point.
+
+        The implementation is a more efficient equivalent to doing the following.
+
+        ```
         params.increment(data_point)
         diff = self.log_marginal_likelihood(params)
         params.decrement(data_point)
         diff -= self.log_marginal_likelihood(params)
         return diff
+        ```
+
+        '''
+        D = self.priors.dim
+        u = (params.r * params.u + data_point) / (params.r + 1)
+        diff = np.sqrt((params.r + 1) / params.r) * (data_point - u)
+        S_chol = cholesky_update(params.S_chol, diff, 1, inplace=False)
+        return -0.5 * D * np.log(np.pi) + \
+            0.5 * D * (np.log(params.r) - np.log(params.r + 1)) + \
+            0.5 * (params.nu * cholesky_log_det(params.S_chol) - (params.nu + 1) * cholesky_log_det(S_chol)) + \
+            log_gamma(0.5 * (params.nu + 1)) - log_gamma(0.5 * (params.nu + 1 - D))
