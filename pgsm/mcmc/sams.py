@@ -45,7 +45,7 @@ class SequentiallyAllocatedMergeSplitSampler(object):
         clustering = [0 for _ in range(len(sigma))]
         log_q = 0
         params = [self.dist.create_params(data[sigma]), ]
-        block_sizes = list(unchanged_block_sizes) + [x.ss.N for x in params]
+        block_sizes = list(unchanged_block_sizes) + [x.suff_stats.N for x in params]
         log_p = self._log_p(block_sizes, params)
         mh_factor = log_p - log_q
         return clustering, mh_factor
@@ -60,7 +60,7 @@ class SequentiallyAllocatedMergeSplitSampler(object):
             for cluster_params in params:
                 cluster_params.increment(data_point)
                 log_cluster_probs.append(
-                    np.log(cluster_params.ss.N) + self.dist.log_marginal_likelihood(cluster_params)
+                    np.log(cluster_params.suff_stats.N) + self.dist.log_marginal_likelihood(cluster_params)
                 )
                 cluster_params.decrement(data_point)
             p = exp_normalize(log_cluster_probs)
@@ -68,7 +68,7 @@ class SequentiallyAllocatedMergeSplitSampler(object):
             clustering.append(c)
             log_q += log_normalize(log_cluster_probs)[c]
             params[c].increment(data_point)
-        block_sizes = list(unchanged_block_sizes) + [x.ss.N for x in params]
+        block_sizes = list(unchanged_block_sizes) + [x.suff_stats.N for x in params]
         log_p = self._log_p(block_sizes, params)
         mh_factor = log_p - log_q
         return clustering, mh_factor
