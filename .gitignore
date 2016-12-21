@@ -1,3 +1,4 @@
 *.pyc
 *egg-info
 .*project
+*__pycache__*
