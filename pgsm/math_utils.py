@@ -11,10 +11,15 @@ def discrete_rvs(p):
     return np.random.multinomial(1, p).argmax()
 
 
-def exp_normalize(log_p):
+def exp_normalize(log_p, return_log_norm=False):
     log_p = np.array(log_p)
-    p = np.exp(log_normalize(log_p))
-    return p / p.sum()
+    log_norm = log_sum_exp(log_p)
+    p = np.exp(log_p - log_norm)
+    p / p.sum()
+    if return_log_norm:
+        return p, log_norm
+    else:
+        return p
 
 
 def log_normalize(log_p):
