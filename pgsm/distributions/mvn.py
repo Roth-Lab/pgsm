@@ -2,7 +2,7 @@ from __future__ import division
 
 import numpy as np
 
-from pgsm.math_utils import cholesky_update, log_gamma, outer_product
+from pgsm.math_utils import cholesky_log_det, cholesky_update, log_gamma, outer_product
 
 
 class MultivariateNormalSufficientStatistics(object):
@@ -10,9 +10,7 @@ class MultivariateNormalSufficientStatistics(object):
     def __init__(self, X):
         X = np.atleast_2d(X)
         self.N = X.shape[0]
-        self.X = np.zeros(X.shape[1], dtype=np.float64)
-        for n in range(self.N):
-            self.X += X[n]
+        self.X = np.sum(X, axis=0)
         self.S = np.dot(X.T, X)
 
     def copy(self):
@@ -57,7 +55,7 @@ class MultivariateNormalParameters(object):
 
     @property
     def log_det_S(self):
-        return 2 * np.sum(np.log(np.diag(self.S_chol)))
+        return cholesky_log_det(self.S_chol)
 
     @property
     def S(self):
