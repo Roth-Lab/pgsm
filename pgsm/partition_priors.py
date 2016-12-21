@@ -27,3 +27,9 @@ class DirichletProcessPartitionPrior(PartitionPrior):
 
     def log_tau_2(self, x):
         return log_factorial(x - 1)
+
+    def log_tau_1_diff(self, x):
+        return math.log(self.alpha)
+
+    def log_tau_2_diff(self, x):
+        return math.log(x)
