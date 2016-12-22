@@ -11,80 +11,101 @@ from pgsm.particle_utils import get_constrained_path
 
 class SplitMergeParticle(object):
 
-    def __init__(self, block_idx, log_w, parent_particle, posterior_params):
+    def __init__(self, block_idx, block_params, log_w, parent_particle):
         self.block_idx = block_idx
+        self.block_params_ = block_params  # Only access this if you won't modify
         self.log_w = log_w
         self.parent_particle = parent_particle
-        self._posterior_params = posterior_params
 
     @property
-    def posterior_params(self):
-        return [x.copy() for x in self._posterior_params]
+    def block_params(self):
+        return [x.copy() for x in self.block_params_]
+
+    @property
+    def generation(self):
+        if len(self.block_params_) == 0:
+            return 0
+        else:
+            return sum([x.N for x in self.block_params_])
 
     def copy(self):
-        return SplitMergeParticle(self.block_idx, self.log_w, self.parent_particle, self.posterior_params)
+        return SplitMergeParticle(self.block_idx, self.block_params, self.log_w, self.parent_particle)
 
 
-# class AnnealedSplitMergeParticle(SplitMergeParticle):
-#
-#     def __init__(
-#             self,
-#             block_idx,
-#             generation,
-#             log_g_anchor,
-#             log_g,
-#             log_w,
-#             parent_particle,
-#             posterior_params):
-#
-#         SplitMergeParticle.__init__(self, block_idx, log_g, log_w, parent_particle, posterior_params)
-#         self.generation = generation
-#         self.log_g_anchor = log_g_anchor
-#
-#     def copy(self):
-#         return AnnealedSplitMergeParticle(
-#             self.block_idx,
-#             self.generation,
-#             self.log_g_anchor,
-#             self.log_g,
-#             self.log_w,
-#             self.parent_particle,
-#             self.posterior_params)
+class AnnealedSplitMergeParticle(SplitMergeParticle):
+
+    def __init__(
+            self,
+            block_idx,
+            block_params,
+            log_annealing_correction,
+            log_w,
+            parent_particle):
+
+        SplitMergeParticle.__init__(self, block_idx, block_params, log_w, parent_particle)
+        self.log_annealing_correction = log_annealing_correction
+
+    def copy(self):
+        return AnnealedSplitMergeParticle(
+            self.block_idx,
+            self.block_params,
+            self.log_annealing_correction,
+            self.log_w,
+            self.parent_particle)
 
 
-class SMCKernel(object):
+class AbstractSplitMergKernel(object):
 
     def __init__(self, dist, partition_prior):
         self.dist = dist
         self.partition_prior = partition_prior
 
+    def can_add_block(self, parent_particle):
+        '''
+        Check if a descendant particle can add a new block.
+        '''
+        if parent_particle is None:
+            return True
+        else:
+            return (parent_particle.generation < self.num_anchors)
+
     def create_initial_particle(self, data_point):
         return self.create_particle(0, data_point, None)
 
     def create_particle(self, block_idx, data_point, parent_particle, log_q=None, log_q_norm=None):
-        posterior_params = self._get_posterior_params(block_idx, data_point, parent_particle)
+        '''
+        Create a descenedant particle from a parent particle by adding data point to a block.
+        '''
+        block_params = self._get_block_params(block_idx, data_point, parent_particle)
         if log_q is None:
             log_q = self._get_log_q(data_point, parent_particle)
         if log_q_norm is None:
             log_q_norm = log_sum_exp(log_q.values())
-        if parent_particle is None:
-            log_w = 0
-        else:
-            log_w = log_q_norm
-        return SplitMergeParticle(
-            block_idx=block_idx,
-            log_w=log_w,
-            parent_particle=parent_particle,
-            posterior_params=posterior_params
-        )
+        return self._create_particle(block_idx, block_params, data_point, log_q, log_q_norm, parent_particle)
+
+    def log_target_density(self, params):
+        log_g = self.partition_prior.log_tau_1(len(params) + self.num_cluster_diff)
+        for block_params in params:
+            log_g += self.partition_prior.log_tau_2_diff(block_params.N)
+            log_g += self.dist.log_marginal_likelihood(block_params)
+        return log_g
 
     def propose(self, data_point, parent_particle, seed=None):
+        '''
+        Propose a particle for t given a particle from t - 1 and a data point.
+        '''
         if seed is not None:
             random.seed(seed)
             np.random.seed(seed)
-        return self._propose(data_point, parent_particle)
+        log_q = self._get_log_q(data_point, parent_particle)
+        block_probs, log_q_norm = exp_normalize(log_q.values())
+        block_idx = np.random.choice(log_q.keys(), p=block_probs)
+        return self.create_particle(block_idx, data_point, parent_particle, log_q=log_q, log_q_norm=log_q_norm)
 
     def setup(self, anchors, clustering, data, sigma):
+        '''
+        Setup kernel for a split merge run based on anchors, current clustering, data and permutation of indices.
+        '''
         self.num_anchors = len(anchors)
         self.num_generations = len(sigma)
 
@@ -94,144 +115,160 @@ class SMCKernel(object):
 
         self.constrained_path = get_constrained_path(clustering[sigma], data[sigma], self)
 
-    def _can_add_block(self, posterior_params):
-        num_data_points = sum([x.suff_stats.N for x in posterior_params])
-        return (num_data_points < self.num_anchors) and (len(posterior_params) < self.num_anchors)
-
-    def _get_posterior_params(self, block_idx, data_point, parent_particle):
+    def _get_block_params(self, block_idx, data_point, parent_particle):
+        '''
+        Get posterior parameters from parent particle updated by adding data_point to a block.
+        '''
         if parent_particle is None:
-            posterior_params = []
+            block_params = []
         else:
-            posterior_params = parent_particle.posterior_params
+            block_params = parent_particle.block_params
 
-        if block_idx > (len(posterior_params) - 1):
-            posterior_params.append(self.dist.create_params(data_point))
+        if block_idx > (len(block_params) - 1):
+            params = self.dist.create_params()
+            params.increment(data_point)
+            block_params.append(params)
         else:
-            posterior_params[block_idx].increment(data_point)
+            block_params[block_idx].increment(data_point)
 
-        return posterior_params
+        return block_params
 
-    def _propose(self, data_point, parent_particle):
-        log_q = self._get_log_q(data_point, parent_particle)
-        block_probs, log_q_norm = exp_normalize(log_q.values())
-        block_idx = np.random.choice(log_q.keys(), p=block_probs)
-        return self.create_particle(block_idx, data_point, parent_particle, log_q=log_q, log_q_norm=log_q_norm)
+    def _create_particle(self, block_idx, block_params, data_point, log_q, log_q_norm, parent_particle):
+        raise NotImplementedError
 
-#
-# class NaiveSplitMergeKernel(SMCKernel):
-#
-#     def _get_log_q(self, data_point, parent_particle):
-#         if parent_particle is None:
-#             posterior_params = []
-#         else:
-#             posterior_params = parent_particle.posterior_params
-#
-#         log_q = {}
-#
-#         for block_idx, _ in enumerate(posterior_params):
-#             log_q[block_idx] = 0
-#
-#         if self._can_add_block(posterior_params):
-#             block_idx = len(posterior_params)
-#             log_q[block_idx] = 0
-#
-#         return log_q
+    def _get_log_q(self, data_point, parent_particle):
+        '''
+        Get the unnormalized proposal
+        '''
+        raise NotImplementedError
 
 
-class FullyAdaptedSplitMergeKernel(SMCKernel):
+class UniformSplitMergeKernel(AbstractSplitMergKernel):
+    '''
+    Propose next state uniformly from available states.
+    '''
+
+    def _create_particle(self, block_idx, block_params, data_point, log_q, log_q_norm, parent_particle):
+        if parent_particle is None:
+            log_w = 0
+        else:
+            log_w = self.log_target_density(block_params) - \
+                self.log_target_density(parent_particle.block_params_) - log_q_norm
+        return SplitMergeParticle(
+            block_idx=block_idx,
+            block_params=block_params,
+            log_w=log_w,
+            parent_particle=parent_particle)
 
     def _get_log_q(self, data_point, parent_particle):
         if parent_particle is None:
-            posterior_params = []
+            block_params = []
         else:
-            posterior_params = parent_particle.posterior_params
+            block_params = parent_particle.block_params_
 
         log_q = {}
 
-        for block_idx, params in enumerate(posterior_params):
-            log_q[block_idx] = self.partition_prior.log_tau_2_diff(params.suff_stats.N) + \
+        for block_idx, _ in enumerate(block_params):
+            log_q[block_idx] = 0
+
+        if self.can_add_block(parent_particle):
+            block_idx = len(block_params)
+            log_q[block_idx] = 0
+
+        return log_q
+
+
+class FullyAdaptedSplitMergeKernel(AbstractSplitMergKernel):
+    '''
+    Propose next with probability proportional to target density.
+    '''
+
+    def _create_particle(self, block_idx, block_params, data_point, log_q, log_q_norm, parent_particle):
+        if parent_particle is None:
+            log_w = 0
+        else:
+            log_w = log_q_norm
+        return SplitMergeParticle(
+            block_idx=block_idx,
+            block_params=block_params,
+            log_w=log_w,
+            parent_particle=parent_particle)
+
+    def _get_log_q(self, data_point, parent_particle):
+        if parent_particle is None:
+            block_params = []
+        else:
+            block_params = parent_particle.block_params_
+
+        log_q = {}
+
+        for block_idx, params in enumerate(block_params):
+            log_q[block_idx] = self.partition_prior.log_tau_2_diff(params.N) + \
                 self.dist.log_marginal_likelihood_diff(data_point, params)
 
-        if self._can_add_block(posterior_params):
-            block_idx = len(posterior_params)
-            params = self.dist.create_params(data_point)
+        if self.can_add_block(parent_particle):
+            block_idx = len(block_params)
+            params = self.dist.create_params()
+            params.increment(data_point)
             # TODO: Check this missing global cluster diff
-            log_q[block_idx] = self.partition_prior.log_tau_1_diff(len(posterior_params)) + \
+            log_q[block_idx] = \
+                self.partition_prior.log_tau_1_diff(self.num_cluster_diff + len(block_params) + 1) + \
                 self.partition_prior.log_tau_2_diff(1) + self.dist.log_marginal_likelihood(params)
 
         return log_q
 
 
-# class AnnealedSplitMergeKernel(SMCKernel):
-#
-#     def create_particle(self, block_idx, data_point, parent_particle, log_q=None):
-#         if parent_particle is None:
-#             generation = 1
-#         else:
-#             generation = parent_particle.generation + 1
-#
-#         posterior_params = self._get_posterior_params(block_idx, data_point, parent_particle)
-#
-#         if log_q is None:
-#             log_q = self._get_log_q(data_point, parent_particle)
-#         log_q_norm = log_sum_exp(log_q.values())
-#
-#         if generation <= self.num_anchors:
-#             log_g = -np.log(len(log_q))
-#         else:
-#             log_g = self._compute_log_intermediate_target(posterior_params)
-#
-#         if parent_particle is None:
-#             log_w = 0
-#         else:
-#             log_w = log_q_norm - parent_particle.log_g
-#
-#         if generation < self.num_anchors:
-#             log_g_anchor = None
-#         elif generation == self.num_anchors:
-#             log_g_anchor = log_g
-#         else:
-#             log_g_anchor = parent_particle.log_g_anchor
-#
-#         return AnnealedSplitMergeParticle(
-#             block_idx=block_idx,
-#             generation=generation,
-#             log_g_anchor=log_g_anchor,
-#             log_g=log_g,
-#             log_w=log_w,
-#             parent_particle=parent_particle,
-#             posterior_params=posterior_params
-#         )
-#
-#     def _get_log_q(self, data_point, parent_particle):
-#         if parent_particle is None:
-#             generation = 1
-#             posterior_params = []
-#         else:
-#             generation = parent_particle.generation + 1
-#             posterior_params = parent_particle.posterior_params
-#
-#         log_q = {}
-#
-#         if generation <= self.num_anchors:
-#             for block_idx, _ in enumerate(posterior_params):
-#                 log_q[block_idx] = 0
-#
-#             if self._can_add_block(posterior_params):
-#                 block_idx = len(posterior_params)
-#                 log_q[block_idx] = 0
-#
-#         else:
-#             log_annealing_correction = self._get_log_annealing_correction(parent_particle)
-#             for block_idx, params in enumerate(posterior_params):
-#                 params.increment(data_point)
-#                 log_q[block_idx] = log_annealing_correction + self._compute_log_intermediate_target(posterior_params)
-#                 params.decrement(data_point)
-#
-#         return log_q
-#
-#     def _get_log_annealing_correction(self, parent_particle):
-#         t = parent_particle.generation + 1
-#         n = self.num_generations
-#         s = self.num_anchors
-#         return ((t - s) / (n - s) - 1) * parent_particle.log_g_anchor
+class AnnealedSplitMergeKernel(AbstractSplitMergKernel):
+    '''
+    Propose new states uniformly until all anchors are added then use fully adapted proposal.
+    '''
+
+    def _create_particle(self, block_idx, block_params, data_point, log_q, log_q_norm, parent_particle):
+        if parent_particle is None:
+            generation = 1
+        else:
+            generation = parent_particle.generation + 1
+
+        if parent_particle is None:
+            log_w = 0
+        else:
+            log_w = log_q_norm
+
+        if generation < self.num_anchors:
+            log_annealing_correction = None
+        elif generation == self.num_anchors:
+            n = self.num_generations
+            s = self.num_anchors
+            log_annealing_correction = (1 / (n - s)) * self.log_target_density(block_params)
+        else:
+            log_annealing_correction = parent_particle.log_annealing_correction
+
+        return AnnealedSplitMergeParticle(
+            block_idx=block_idx,
+            block_params=block_params,
+            log_annealing_correction=log_annealing_correction,
+            log_w=log_w,
+            parent_particle=parent_particle)
+
+    def _get_log_q(self, data_point, parent_particle):
+        if parent_particle is None:
+            block_params = []
+        else:
+            block_params = parent_particle.block_params_
+
+        log_q = {}
+
+        if self.can_add_block(parent_particle):
+            for block_idx, _ in enumerate(block_params):
+                log_q[block_idx] = 0
+
+            block_idx = len(block_params)
+            log_q[block_idx] = 0
+
+        else:
+            for block_idx, params in enumerate(block_params):
+                log_q[block_idx] = parent_particle.log_annealing_correction + \
+                    self.partition_prior.log_tau_2_diff(params.N) + \
+                    self.dist.log_marginal_likelihood_diff(data_point, params)
+
+        return log_q
