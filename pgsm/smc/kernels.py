@@ -99,7 +99,8 @@ class AbstractSplitMergKernel(object):
             np.random.seed(seed)
         log_q = self._get_log_q(data_point, parent_particle)
         block_probs, log_q_norm = exp_normalize(log_q.values())
-        block_idx = np.random.choice(log_q.keys(), p=block_probs)
+        block_idx = np.random.multinomial(1, block_probs).argmax()
+        block_idx = log_q.keys()[block_idx]
         return self.create_particle(block_idx, data_point, parent_particle, log_q=log_q, log_q_norm=log_q_norm)
 
     def setup(self, anchors, clustering, data, sigma):
