@@ -61,4 +61,18 @@ class ParticleGibbsSampler(SMCSampler):
             particles = self.resample_if_necessary(new_particles)
             # Overwrite first particle with constrained path
             particles[-1] = constrained_path[i].copy()
+            if self._check_collapse(kernel, particles):
+                print 'collapse'
+                return constrained_path
         return particles
+
+    def _check_collapse(self, kernel, particles):
+        if kernel.can_add_block(particles[0]):
+            collapse = False
+        else:
+            collapse = True
+            for p in particles:
+                if len(p.block_params_) > 1:
+                    collapse = False
+                    break
+        return collapse
