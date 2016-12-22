@@ -31,7 +31,9 @@ class CollapsedGibbsSampler(object):
         tables = []
         for z in np.unique(clustering):
             idx = np.argwhere(clustering == z).flatten()
-            tables.append(Table(list(idx), self.dist.create_params(data[idx])))
+            tables.append(Table(list(idx), self.dist.create_params()))
+            for i in idx:
+                tables[-1].dish.increment(data[i])
         return tables
 
     def _resample_params(self, clustering, data, tables):
@@ -45,13 +47,14 @@ class CollapsedGibbsSampler(object):
             tables[z].dish.decrement(x)
 
             log_p = []
-            new_params = self.dist.create_params(x)
+            new_params = self.dist.create_params()
+            new_params.increment(x)
             log_p.append(self.partition_prior.log_tau_1_diff(len(tables)) + self.partition_prior.log_tau_2(1) +
                          self.dist.log_marginal_likelihood(new_params))
             for table in tables:
-                if table.dish.suff_stats.N == 0:
+                if table.dish.N == 0:
                     continue
-                log_p_c = self.partition_prior.log_tau_2_diff(table.dish.suff_stats.N) + \
+                log_p_c = self.partition_prior.log_tau_2_diff(table.dish.N) + \
                     self.dist.log_marginal_likelihood_diff(x, table.dish)
                 log_p.append(log_p_c)
 
@@ -63,12 +66,12 @@ class CollapsedGibbsSampler(object):
                 tables[z].customers.append(i)
                 tables[z].dish.increment(x)
 
-            tables = [x for x in tables if x.dish.suff_stats.N > 0]
+            tables = [x for x in tables if x.dish.N > 0]
 
         return self._prune(clustering, tables)
 
     def _prune(self, clustering, tables):
-        tables = [x for x in tables if x.dish.suff_stats.N > 0]
+        tables = [x for x in tables if x.dish.N > 0]
         for z, table in enumerate(tables):
             clustering[np.array(table.customers)] = z
         return clustering, tables
