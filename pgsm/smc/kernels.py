@@ -16,17 +16,14 @@ class SplitMergeParticle(object):
         self.block_params_ = block_params  # Only access this if you won't modify
         self.log_w = log_w
         self.parent_particle = parent_particle
+        if len(self.block_params_) == 0:
+            self.generation = 0
+        else:
+            self.generation = sum([x.N for x in self.block_params_])
 
     @property
     def block_params(self):
         return [x.copy() for x in self.block_params_]
-
-    @property
-    def generation(self):
-        if len(self.block_params_) == 0:
-            return 0
-        else:
-            return sum([x.N for x in self.block_params_])
 
     def copy(self):
         return SplitMergeParticle(self.block_idx, self.block_params, self.log_w, self.parent_particle)
