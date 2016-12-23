@@ -75,7 +75,7 @@ class AbstractSplitMergKernel(object):
         '''
         block_params = self._get_block_params(block_idx, data_point, parent_particle)
         if log_q is None:
-            log_q = self._get_log_q(data_point, parent_particle)
+            log_q = self.get_log_q(data_point, parent_particle)
         if log_q_norm is None:
             log_q_norm = log_sum_exp(log_q.values())
         return self._create_particle(block_idx, block_params, data_point, log_q, log_q_norm, parent_particle)
@@ -94,7 +94,7 @@ class AbstractSplitMergKernel(object):
         if seed is not None:
             random.seed(seed)
             np.random.seed(seed)
-        log_q = self._get_log_q(data_point, parent_particle)
+        log_q = self.get_log_q(data_point, parent_particle)
         block_probs, log_q_norm = exp_normalize(log_q.values())
         block_idx = np.random.multinomial(1, block_probs).argmax()
         block_idx = log_q.keys()[block_idx]
@@ -131,13 +131,13 @@ class AbstractSplitMergKernel(object):
 
         return block_params
 
-    def _create_particle(self, block_idx, block_params, data_point, log_q, log_q_norm, parent_particle):
-        raise NotImplementedError
-
-    def _get_log_q(self, data_point, parent_particle):
+    def get_log_q(self, data_point, parent_particle):
         '''
         Get the unnormalized proposal
         '''
+        raise NotImplementedError
+
+    def _create_particle(self, block_idx, block_params, data_point, log_q, log_q_norm, parent_particle):
         raise NotImplementedError
 
 
@@ -146,19 +146,7 @@ class UniformSplitMergeKernel(AbstractSplitMergKernel):
     Propose next state uniformly from available states.
     '''
 
-    def _create_particle(self, block_idx, block_params, data_point, log_q, log_q_norm, parent_particle):
-        if parent_particle is None:
-            log_w = 0
-        else:
-            log_w = self.log_target_density(block_params) - \
-                self.log_target_density(parent_particle.block_params_) - log_q_norm
-        return SplitMergeParticle(
-            block_idx=block_idx,
-            block_params=block_params,
-            log_w=log_w,
-            parent_particle=parent_particle)
-
-    def _get_log_q(self, data_point, parent_particle):
+    def get_log_q(self, data_point, parent_particle):
         if parent_particle is None:
             block_params = []
         else:
@@ -175,24 +163,25 @@ class UniformSplitMergeKernel(AbstractSplitMergKernel):
 
         return log_q
 
-
-class FullyAdaptedSplitMergeKernel(AbstractSplitMergKernel):
-    '''
-    Propose next with probability proportional to target density.
-    '''
-
     def _create_particle(self, block_idx, block_params, data_point, log_q, log_q_norm, parent_particle):
         if parent_particle is None:
             log_w = 0
         else:
-            log_w = log_q_norm
+            log_w = self.log_target_density(block_params) - \
+                self.log_target_density(parent_particle.block_params_) - log_q_norm
         return SplitMergeParticle(
             block_idx=block_idx,
             block_params=block_params,
             log_w=log_w,
             parent_particle=parent_particle)
 
-    def _get_log_q(self, data_point, parent_particle):
+
+class FullyAdaptedSplitMergeKernel(AbstractSplitMergKernel):
+    '''
+    Propose next with probability proportional to target density.
+    '''
+
+    def get_log_q(self, data_point, parent_particle):
         if parent_particle is None:
             block_params = []
         else:
@@ -215,11 +204,45 @@ class FullyAdaptedSplitMergeKernel(AbstractSplitMergKernel):
 
         return log_q
 
+    def _create_particle(self, block_idx, block_params, data_point, log_q, log_q_norm, parent_particle):
+        if parent_particle is None:
+            log_w = 0
+        else:
+            log_w = log_q_norm
+        return SplitMergeParticle(
+            block_idx=block_idx,
+            block_params=block_params,
+            log_w=log_w,
+            parent_particle=parent_particle)
+
 
 class AnnealedSplitMergeKernel(AbstractSplitMergKernel):
     '''
     Propose new states uniformly until all anchors are added then use fully adapted proposal.
     '''
+
+    def get_log_q(self, data_point, parent_particle):
+        if parent_particle is None:
+            block_params = []
+        else:
+            block_params = parent_particle.block_params_
+
+        log_q = {}
+
+        if self.can_add_block(parent_particle):
+            for block_idx, _ in enumerate(block_params):
+                log_q[block_idx] = 0
+
+            block_idx = len(block_params)
+            log_q[block_idx] = 0
+
+        else:
+            for block_idx, params in enumerate(block_params):
+                log_q[block_idx] = parent_particle.log_annealing_correction + \
+                    self.partition_prior.log_tau_2_diff(params.N) + \
+                    self.dist.log_marginal_likelihood_diff(data_point, params)
+
+        return log_q
 
     def _create_particle(self, block_idx, block_params, data_point, log_q, log_q_norm, parent_particle):
         if parent_particle is None:
@@ -247,26 +270,3 @@ class AnnealedSplitMergeKernel(AbstractSplitMergKernel):
             log_annealing_correction=log_annealing_correction,
             log_w=log_w,
             parent_particle=parent_particle)
-
-    def _get_log_q(self, data_point, parent_particle):
-        if parent_particle is None:
-            block_params = []
-        else:
-            block_params = parent_particle.block_params_
-
-        log_q = {}
-
-        if self.can_add_block(parent_particle):
-            for block_idx, _ in enumerate(block_params):
-                log_q[block_idx] = 0
-
-            block_idx = len(block_params)
-            log_q[block_idx] = 0
-
-        else:
-            for block_idx, params in enumerate(block_params):
-                log_q[block_idx] = parent_particle.log_annealing_correction + \
-                    self.partition_prior.log_tau_2_diff(params.N) + \
-                    self.dist.log_marginal_likelihood_diff(data_point, params)
-
-        return log_q
