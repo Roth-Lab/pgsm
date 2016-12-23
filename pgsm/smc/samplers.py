@@ -26,7 +26,10 @@ class SMCSampler(object):
                 print 'Resampling', ess
             multiplicities = np.random.multinomial(self.num_particles, particle_probs)
             for particle, multiplicity in zip(new_particles, multiplicities):
-                particles.extend([particle.copy() for _ in range(multiplicity)])
+                for _ in range(multiplicity):
+                    p = particle.copy()
+                    p.log_w = -np.log(self.num_particles)
+                    particles.append(p)
         else:
             particles = new_particles
         return particles
@@ -91,6 +94,7 @@ class ImplicitParticleGibbsSampler(SMCSampler):
             for p, m in zip(new_particles, multiplicities):
                 if p == constrained_particle:
                     m += 1
+                p.log_w = -np.log(self.num_particles)
                 particles[p] = m
         else:
             particles = new_particles

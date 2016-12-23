@@ -167,7 +167,7 @@ class UniformSplitMergeKernel(AbstractSplitMergKernel):
         if parent_particle is None:
             log_w = 0
         else:
-            log_w = self.log_target_density(block_params) - \
+            log_w = parent_particle.log_w + self.log_target_density(block_params) - \
                 self.log_target_density(parent_particle.block_params_) - log_q_norm
         return SplitMergeParticle(
             block_idx=block_idx,
@@ -208,7 +208,7 @@ class FullyAdaptedSplitMergeKernel(AbstractSplitMergKernel):
         if parent_particle is None:
             log_w = 0
         else:
-            log_w = log_q_norm
+            log_w = parent_particle.log_w + log_q_norm
         return SplitMergeParticle(
             block_idx=block_idx,
             block_params=block_params,
@@ -253,7 +253,7 @@ class AnnealedSplitMergeKernel(AbstractSplitMergKernel):
         if parent_particle is None:
             log_w = 0
         else:
-            log_w = log_q_norm
+            log_w = parent_particle.log_w + log_q_norm
 
         if generation < self.num_anchors:
             log_annealing_correction = None
