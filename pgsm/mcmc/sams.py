@@ -5,7 +5,7 @@ Created on 8 Dec 2016
 '''
 import numpy as np
 
-from pgsm.math_utils import discrete_rvs, exp_normalize, log_normalize
+from pgsm.math_utils import discrete_rvs, log_normalize
 from pgsm.utils import relabel_clustering, setup_split_merge
 
 
@@ -44,8 +44,10 @@ class SequentiallyAllocatedMergeSplitSampler(object):
     def _merge(self, data, sigma, unchanged_block_sizes):
         clustering = [0 for _ in range(len(sigma))]
         log_q = 0
-        params = [self.dist.create_params(data[sigma]), ]
-        block_sizes = list(unchanged_block_sizes) + [x.suff_stats.N for x in params]
+        params = [self.dist.create_params(), ]
+        for x in data[sigma]:
+            params[0].increment(x)
+        block_sizes = list(unchanged_block_sizes) + [x.N for x in params]
         log_p = self._log_p(block_sizes, params)
         mh_factor = log_p - log_q
         return clustering, mh_factor
@@ -53,22 +55,25 @@ class SequentiallyAllocatedMergeSplitSampler(object):
     def _split(self, data, sigma, unchanged_block_sizes):
         clustering = [0, 1]
         log_q = 0
-        params = [self.dist.create_params(data[sigma[0]]), self.dist.create_params(data[sigma[1]])]
+        params = [self.dist.create_params(), self.dist.create_params()]
+        for i in range(2):
+            params[i].increment(data[sigma[i]])
         for idx in sigma[2:]:
             data_point = data[idx]
-            log_cluster_probs = []
+            log_block_probs = []
             for cluster_params in params:
-                cluster_params.increment(data_point)
-                log_cluster_probs.append(
-                    np.log(cluster_params.suff_stats.N) + self.dist.log_marginal_likelihood(cluster_params)
+                log_block_probs.append(
+                    np.log(cluster_params.N + 1) + self.dist.log_marginal_likelihood_diff(data_point, cluster_params)
                 )
-                cluster_params.decrement(data_point)
-            p = exp_normalize(log_cluster_probs)
-            c = discrete_rvs(p)
+            log_block_probs = np.array(log_block_probs)
+            log_block_probs = log_normalize(log_block_probs)
+            block_probs = np.exp(log_block_probs)
+            block_probs = block_probs / block_probs.sum()
+            c = discrete_rvs(block_probs)
             clustering.append(c)
-            log_q += log_normalize(log_cluster_probs)[c]
+            log_q += log_block_probs[c]
             params[c].increment(data_point)
-        block_sizes = list(unchanged_block_sizes) + [x.suff_stats.N for x in params]
+        block_sizes = list(unchanged_block_sizes) + [x.N for x in params]
         log_p = self._log_p(block_sizes, params)
         mh_factor = log_p - log_q
         return clustering, mh_factor
