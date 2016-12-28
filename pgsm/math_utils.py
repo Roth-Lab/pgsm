@@ -36,6 +36,7 @@ def log_sum_exp(log_X):
     return np.log(total) + max_exp
 
 
+@numba.jit(cache=True, nopython=True)
 def log_normalize(log_p):
     return log_p - log_sum_exp(log_p)
 
