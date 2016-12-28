@@ -2,7 +2,7 @@ from __future__ import division
 
 import math
 
-from pgsm.math_utils import log_factorial
+from pgsm.math_utils import log_factorial, log_gamma
 
 
 class PartitionPrior(object):
@@ -33,3 +33,22 @@ class DirichletProcessPartitionPrior(PartitionPrior):
 
     def log_tau_2_diff(self, x):
         return math.log(x)
+
+
+class FiniteDirichletPartitionPrior(PartitionPrior):
+
+    def __init__(self, alpha, dim):
+        self.alpha = alpha
+        self.dim = dim
+
+    def log_tau_1(self, x):
+        return 0
+
+    def log_tau_2(self, x):
+        return log_gamma(x + self.alpha)
+
+    def log_tau_1_diff(self, x):
+        return float('-inf')
+
+    def log_tau_2_diff(self, x):
+        return math.log(x + self.alpha)
