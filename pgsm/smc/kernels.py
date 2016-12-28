@@ -83,7 +83,7 @@ class AbstractSplitMergKernel(object):
     def log_target_density(self, params):
         log_g = self.partition_prior.log_tau_1(len(params) + self.num_cluster_diff)
         for block_params in params:
-            log_g += self.partition_prior.log_tau_2_diff(block_params.N)
+            log_g += self.partition_prior.log_tau_2(block_params.N)
             log_g += self.dist.log_marginal_likelihood(block_params)
         return log_g
 
