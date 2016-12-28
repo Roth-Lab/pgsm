@@ -31,7 +31,7 @@ class ParticleGibbsSplitMerge(object):
         return relabel_clustering(clustering)
 
     def _sample_particle(self, particles):
-        probs, _ = exp_normalize([float(x.log_w) for x in particles])
+        probs, _ = exp_normalize([float(x.log_W) for x in particles])
         particle_idx = np.random.multinomial(1, probs).argmax()
         return particles[particle_idx]
 

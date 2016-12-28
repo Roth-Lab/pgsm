@@ -7,7 +7,7 @@ from __future__ import division
 
 import numpy as np
 
-from pgsm.math_utils import exp_normalize
+from pgsm.math_utils import exp_normalize, log_normalize
 
 
 class SMCSampler(object):
@@ -17,21 +17,30 @@ class SMCSampler(object):
         self.resample_threshold = resample_threshold
         self.verbose = verbose
 
-    def resample_if_necessary(self, new_particles):
-        particle_probs, _ = exp_normalize([float(p.log_w) for p in new_particles])
+    def resample_if_necessary(self, new_particles, conditional_particle=None):
+        particles = []
+        log_particle_probs = np.array([p.parent_particle.log_W + p.log_w for p in new_particles])
+        log_particle_probs = log_normalize(log_particle_probs)
+        particle_probs = np.exp(log_particle_probs)
+        particle_probs = particle_probs / particle_probs.sum()
         ess = 1 / np.sum(np.square(particle_probs))
         if (ess / self.num_particles) <= self.resample_threshold:
-            particles = []
             if self.verbose:
                 print 'Resampling', ess
-            multiplicities = np.random.multinomial(self.num_particles, particle_probs)
+            if conditional_particle is None:
+                multiplicities = np.random.multinomial(self.num_particles, particle_probs)
+            else:
+                multiplicities = np.random.multinomial(self.num_particles - 1, particle_probs)
+                multiplicities[new_particles.index(conditional_particle)] += 1
             for particle, multiplicity in zip(new_particles, multiplicities):
                 for _ in range(multiplicity):
                     p = particle.copy()
-                    p.log_w = -np.log(self.num_particles)
+                    p.log_W = -np.log(self.num_particles)
                     particles.append(p)
         else:
-            particles = new_particles
+            for p, log_W in zip(new_particles, log_particle_probs):
+                p.log_W = log_W
+                particles.append(p)
         return particles
 
     def sample(self, data, kernel):
@@ -61,11 +70,9 @@ class ParticleGibbsSampler(SMCSampler):
             for p_idx in range(self.num_particles - 1):
                 new_particles.append(kernel.propose(data[i], particles[p_idx]))
             new_particles.append(constrained_path[i])
-            particles = self.resample_if_necessary(new_particles)
-            # Overwrite first particle with constrained path
-            particles[-1] = constrained_path[i].copy()
+            particles = self.resample_if_necessary(new_particles, conditional_particle=constrained_path[i])
             if self._check_collapse(kernel, particles):
-                print 'Collapse'
+                print 'Collapse', particles[0].generation
                 return [constrained_path[-1], ]
         return particles
 
@@ -84,20 +91,30 @@ class ParticleGibbsSampler(SMCSampler):
 class ImplicitParticleGibbsSampler(SMCSampler):
 
     def resample_if_necessary(self, constrained_particle, new_particles):
-        particle_probs, _ = exp_normalize([float(np.log(m) + p.log_w) for p, m in new_particles.items()])
-        ess = 1 / np.sum(np.square(particle_probs))
-        if (ess / self.num_particles) <= self.resample_threshold:
-            particles = {}
+        particles = {}
+        log_particle_probs = np.array(
+            [np.log(m) + p.parent_particle.log_W + p.log_w for p, m in new_particles.items()]
+        )
+        log_particle_probs = log_normalize(log_particle_probs)
+        particle_probs = np.exp(log_particle_probs)
+        particle_probs = particle_probs / particle_probs.sum()
+        ess = 1 / np.sum(np.square(particle_probs / np.array(new_particles.values())))
+#         print p.generation, ess
+        if (ess / len(new_particles)) <= self.resample_threshold:
             if self.verbose:
-                print 'Resampling', ess
-            multiplicities = np.random.multinomial(self.num_particles - 1, particle_probs)
+                print 'Resampling', ess / len(new_particles)
+            if constrained_particle is None:
+                multiplicities = np.random.multinomial(self.num_particles, particle_probs)
+            else:
+                multiplicities = np.random.multinomial(self.num_particles - 1, particle_probs)
+                multiplicities[new_particles.keys().index(constrained_particle)] += 1
             for p, m in zip(new_particles, multiplicities):
-                if p == constrained_particle:
-                    m += 1
-                p.log_w = -np.log(self.num_particles)
+                p.log_W = -np.log(self.num_particles)
                 particles[p] = m
         else:
-            particles = new_particles
+            for (p, m), log_W in zip(new_particles.items(), log_particle_probs):
+                p.log_W = log_W - np.log(m)
+                particles[p] = m
         return particles
 
     def sample(self, data, kernel):
@@ -121,19 +138,19 @@ class ImplicitParticleGibbsSampler(SMCSampler):
                 for block_idx, particle_multiplicity in zip(log_q.keys(), multiplicities):
                     if particle_multiplicity == 0:
                         continue
+                    particle = kernel.create_particle(
+                        block_idx,
+                        data[i],
+                        parent_particle,
+                        log_q=log_q,
+                        log_q_norm=log_q_norm)
                     if is_constrained_parent and (constrained_particle.block_idx == block_idx):
+                        constrained_path[i].log_W = particle.log_W
                         particle = constrained_path[i]
-                    else:
-                        particle = kernel.create_particle(
-                            block_idx,
-                            data[i],
-                            parent_particle,
-                            log_q=log_q,
-                            log_q_norm=log_q_norm)
                     new_particles[particle] = particle_multiplicity
             particles = self.resample_if_necessary(constrained_particle, new_particles)
             if self._check_collapse(kernel, particles):
-                print 'Collapse'
+                print 'Collapse', sum([x.N for x in particles.keys()[0].block_params])
                 return [constrained_path[-1], ]
             assert new_particles[constrained_path[i]] > 0
             assert sum(new_particles.values()) == self.num_particles
