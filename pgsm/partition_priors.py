@@ -42,13 +42,19 @@ class FiniteDirichletPartitionPrior(PartitionPrior):
         self.dim = dim
 
     def log_tau_1(self, x):
-        return 0
+        if x == self.dim:
+            return 0
+        else:
+            return float('-inf')
 
     def log_tau_2(self, x):
         return log_gamma(x + self.alpha)
 
     def log_tau_1_diff(self, x):
-        return float('-inf')
+        if x == (self.dim - 1):
+            return 0
+        else:
+            return float('-inf')
 
     def log_tau_2_diff(self, x):
         return math.log(x + self.alpha)
