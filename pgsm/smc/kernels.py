@@ -1,11 +1,9 @@
 from __future__ import division
 
-from scipy.misc import logsumexp as log_sum_exp
-
 import numpy as np
 import random
 
-from pgsm.math_utils import exp_normalize
+from pgsm.math_utils import exp_normalize, log_sum_exp
 from pgsm.particle_utils import get_constrained_path
 
 
@@ -15,8 +13,6 @@ class SplitMergeParticle(object):
         self.block_idx = block_idx
         self.block_params_ = block_params  # Only access this if you won't modify
         self.log_w = log_w
-
-        self.log_W = 0
         self.parent_particle = parent_particle
         if len(self.block_params_) == 0:
             self.generation = 0
@@ -79,7 +75,7 @@ class AbstractSplitMergKernel(object):
         if log_q is None:
             log_q = self.get_log_q(data_point, parent_particle)
         if log_q_norm is None:
-            log_q_norm = log_sum_exp(log_q.values())
+            log_q_norm = log_sum_exp(np.array(log_q.values()))
         return self._create_particle(block_idx, block_params, data_point, log_q, log_q_norm, parent_particle)
 
     def log_target_density(self, params):

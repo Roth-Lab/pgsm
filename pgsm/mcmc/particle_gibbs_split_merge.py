@@ -2,7 +2,7 @@ from __future__ import division
 
 import numpy as np
 
-from pgsm.math_utils import exp_normalize
+from pgsm.math_utils import discrete_rvs
 from pgsm.particle_utils import get_cluster_labels
 from pgsm.utils import setup_split_merge, relabel_clustering
 
@@ -19,8 +19,8 @@ class ParticleGibbsSplitMerge(object):
         for _ in range(num_iters):
             anchors, sigma = self._setup_split_merge(clustering)
             self.kernel.setup(anchors, clustering, data, sigma)
-            particles = self.pgs.sample(data[sigma], self.kernel)
-            sampled_particle = self._sample_particle(particles)
+            particles_weights = self.pgs.sample(data[sigma], self.kernel)
+            sampled_particle = self._sample_particle(particles_weights)
             self._get_updated_clustering(clustering, sampled_particle, sigma)
         return clustering
 
@@ -30,9 +30,10 @@ class ParticleGibbsSplitMerge(object):
         clustering[sigma] = restricted_clustering + max_idx + 1
         return relabel_clustering(clustering)
 
-    def _sample_particle(self, particles):
-        probs, _ = exp_normalize([float(x.log_W) for x in particles])
-        particle_idx = np.random.multinomial(1, probs).argmax()
+    def _sample_particle(self, particles_weights):
+        particles = particles_weights.keys()
+        weights = particles_weights.values()
+        particle_idx = discrete_rvs(weights)
         return particles[particle_idx]
 
     def _setup_split_merge(self, clustering):
