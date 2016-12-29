@@ -42,7 +42,7 @@ class SequentiallyAllocatedMergeSplitSampler(object):
         return clustering
 
     def _merge(self, data, sigma, unchanged_block_sizes):
-        clustering = [0 for _ in range(len(sigma))]
+        clustering = [0, ] * len(sigma)
         log_q = 0
         params = [self.dist.create_params(), ]
         for x in data[sigma]:
