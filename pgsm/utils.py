@@ -3,9 +3,20 @@ Created on 8 Dec 2016
 
 @author: Andrew Roth
 '''
+from __future__ import division
+
 from scipy.misc import logsumexp as log_sum_exp
 
 import numpy as np
+
+
+def cluster_entropy(clustering):
+    entropy = 0
+    for z in np.unique(clustering):
+        size = np.sum(clustering == z)
+        frac = size / len(clustering)
+        entropy -= frac * np.log(frac)
+    return entropy
 
 
 def mean_log_prediction(clustering, cluster_prior, data, dist, held_out):
