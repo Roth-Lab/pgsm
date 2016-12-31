@@ -43,7 +43,7 @@ def get_constrained_path(clustering, data, kernel):
     clustering = relabel_clustering(clustering)
     for c, x in zip(clustering, data):
         if len(constrained_path) == 0:
-            particle = kernel.create_particle(c, x, None)
+            particle = kernel.create_particle(c, x, None, log_q={0: 0}, log_q_norm=0)
         else:
             particle = kernel.create_particle(c, x, constrained_path[-1])
         constrained_path.append(particle)

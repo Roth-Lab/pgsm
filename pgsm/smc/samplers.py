@@ -145,55 +145,47 @@ class SMCSampler(object):
     def sample(self, data, kernel):
         raise NotImplemented()
 
-    def _check_collapse(self, kernel, particles):
-        if kernel.can_add_block(particles[0]):
-            collapse = False
-        else:
-            collapse = True
-            for p in particles:
-                if len(p.block_params_) > 1:
-                    collapse = False
-                    break
+    def _check_collapse(self, particles):
+        collapse = True
+        for p in particles:
+            if len(p.block_params_) > 1:
+                collapse = False
+                break
+        if collapse:
+            print 'Particle swarm has collapsed to merge'
         return collapse
 
 
 class IndependentSMCSampler(SMCSampler):
 
     def sample(self, data, kernel):
-        init_particle = kernel.create_initial_particle(data[0])
-        swarm = ParticleSwarm()
-        for _ in range(self.num_particles):
-            swarm.add_particle(0, init_particle.copy())
-        for data_point in data[1:]:
+        swarm = kernel.init_swarm
+        for data_point in kernel.data:
             new_swarm = ParticleSwarm()
             for parent_log_W, parent_particle in zip(swarm.log_weights, swarm.particles):
                 particle = kernel.propose(data_point, parent_particle)
                 new_swarm.add_particle(parent_log_W + particle.log_w, particle)
             swarm = self.resample_if_necessary(swarm)
+            if self._check_collapse(swarm.particles):
+                return {kernel.constrained_path[-1]: 0}
         return swarm.to_dict()
 
 
 class ParticleGibbsSampler(SMCSampler):
 
     def sample(self, data, kernel):
-        constrained_path = kernel.constrained_path
-        init_particle = kernel.create_initial_particle(data[0])
-        swarm = ParticleSwarm()
-        for _ in range(self.num_particles - 1):
-            swarm.add_particle(0, init_particle.copy())
-        swarm.add_particle(0, constrained_path[0])
-        for i in range(1, data.shape[0]):
+        swarm = kernel.init_swarm
+        for constrained_particle, data_point in zip(kernel.constrained_path, kernel.data):
             new_swarm = ParticleSwarm()
             for parent_log_W, parent_particle in zip(swarm.log_weights, swarm.particles):
-                if parent_particle == constrained_path[i - 1]:
-                    particle = constrained_path[i]
+                if parent_particle == constrained_particle.parent_particle:
+                    particle = constrained_particle
                 else:
-                    particle = kernel.propose(data[i], parent_particle)
+                    particle = kernel.propose(data_point, parent_particle)
                 new_swarm.add_particle(parent_log_W + particle.log_w, particle)
-            swarm = self.resample_if_necessary(new_swarm, conditional_particle=constrained_path[i])
-            if self._check_collapse(kernel, swarm.particles):
-                print 'Collapse', swarm.particles[0].generation
-                return {constrained_path[-1]: 0}
+            swarm = self.resample_if_necessary(new_swarm, conditional_particle=constrained_particle)
+            if self._check_collapse(swarm.particles):
+                return {kernel.constrained_path[-1]: 0}
         return swarm.to_dict()
 
 
@@ -219,20 +211,18 @@ class ImplicitParticleGibbsSampler(SMCSampler):
         return new_swarm
 
     def sample(self, data, kernel):
-        constrained_path = kernel.constrained_path
         swarm = ImplicitParticleSwarm()
-        swarm.add_particle(0, kernel.create_initial_particle(data[0]), multiplicity=self.num_particles - 1)
-        swarm.add_particle(0, constrained_path[0], multiplicity=1)
-        for i in range(1, data.shape[0]):
+        for log_weight, particle in zip(kernel.init_swarm.log_weights, kernel.init_swarm.particles):
+            swarm.add_particle(log_weight, particle, 1)
+        for constrained_particle, data_point in zip(kernel.constrained_path, kernel.data):
             new_swarm = ImplicitParticleSwarm()
-            constrained_particle = constrained_path[i]
             for parent_log_W, parent_multiplicity, parent_particle in swarm:
-                is_constrained_parent = (parent_particle == constrained_path[i - 1])
-                log_q = kernel.get_log_q(data[i], parent_particle)
+                is_constrained_parent = (parent_particle == constrained_particle.parent_particle)
+                log_q = kernel.get_log_q(data_point, parent_particle)
                 block_probs, log_q_norm = exp_normalize(log_q.values())
                 if is_constrained_parent:
                     multiplicities = np.random.multinomial(parent_multiplicity - 1, block_probs)
-                    multiplicities[log_q.keys().index(constrained_path[i].block_idx)] += 1
+                    multiplicities[log_q.keys().index(constrained_particle.block_idx)] += 1
                 else:
                     multiplicities = np.random.multinomial(parent_multiplicity, block_probs)
                 for block_idx, multiplicity in zip(log_q.keys(), multiplicities):
@@ -243,26 +233,13 @@ class ImplicitParticleGibbsSampler(SMCSampler):
                     else:
                         particle = kernel.create_particle(
                             block_idx,
-                            data[i],
+                            data_point,
                             parent_particle,
                             log_q=log_q,
                             log_q_norm=log_q_norm)
                     new_swarm.add_particle(parent_log_W + particle.log_w, particle, multiplicity=multiplicity)
             swarm = self.resample_if_necessary(new_swarm, conditional_particle=constrained_particle)
-            if self._check_collapse(kernel, swarm.particles):
-                print 'Collapse', swarm.particles[0].generation
-                return {constrained_path[-1]: 0}
-            assert constrained_path[i] in swarm.particles
-            assert swarm.num_particles == self.num_particles
+            if self._check_collapse(swarm.particles):
+                return {kernel.constrained_path[-1]: 0}
+            assert constrained_particle in swarm.particles
         return swarm.to_dict()
-
-    def _check_collapse(self, kernel, particles):
-        if kernel.can_add_block(particles[0]):
-            collapse = False
-        else:
-            collapse = True
-            for p in particles:
-                if len(p.block_params_) > 1:
-                    collapse = False
-                    break
-        return collapse
