@@ -60,9 +60,11 @@ class MultivariateNormalParameters(object):
         self.S_chol = cholesky_update(self.S_chol, np.sqrt(self.r / (self.r - 1)) * (x - self.u), 1)
 
 
-class MultivariateNormal(object):
+class MultivariateNormalDistribution(object):
 
-    def __init__(self, priors):
+    def __init__(self, dim, priors=None):
+        if priors is None:
+            priors = MultivariateNormalPriors(dim)
         self.priors = priors
 
     def create_params(self):
