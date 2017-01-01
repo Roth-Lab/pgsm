@@ -15,10 +15,10 @@ class SequentiallyAllocatedMergeSplitSampler(object):
         self.dist = dist
         self.partition_prior = partition_prior
 
-    def sample(self, clustering, data, num_iters=1000):
+    def sample(self, clustering, data, num_iters=1):
         for _ in range(num_iters):
             clustering = self._sample(clustering, data)
-        return clustering
+        return relabel_clustering(clustering)
 
     def _sample(self, clustering, data):
         anchors, sigma = setup_split_merge(clustering, 2)
