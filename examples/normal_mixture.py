@@ -1,5 +1,5 @@
 '''
-Simple example of 5 2D multivariate normals.
+Simple example of 4 2D multivariate normals.
 '''
 
 from sklearn.metrics import homogeneity_completeness_v_measure
@@ -34,31 +34,31 @@ def print_info(pred_clustering, true_clustering, iteration, time):
     )
 
 
-def simulate_data():
-    mu = [[10, 10], [10, -10], [-10, 10], [-10, -10], [0, 0]]
+def simulate_data(nun_data_points_per_cluster=100):
+    mu = [[10, 10], [10, -10], [-10, 10], [-10, -10]]
     cov = np.eye(2)
     X = []
     Z = []
     for z, m in enumerate(mu):
-        X.append(np.random.multivariate_normal(m, cov, size=100))
-        Z.append(z * np.ones(100))
+        X.append(np.random.multivariate_normal(m, cov, size=nun_data_points_per_cluster))
+        Z.append(z * np.ones(nun_data_points_per_cluster))
     X = np.vstack(X)
-    Z = np.concatenate(Z)
+    Z = np.concatenate(Z).astype(int)
     return X, Z
 
-
-data, true_clustering = simulate_data()
+np.random.seed(0)
+data, true_clustering = simulate_data(100)
 dist = MultivariateNormalDistribution(2)
 partition_prior = DirichletProcessPartitionPrior(1)
 conc_sampler = GammaPriorConcentrationSampler(1, 1)
-pgsm_sampler = ParticleGibbsSplitMergeSampler.create_from_dist(dist, partition_prior)
+pgsm_sampler = ParticleGibbsSplitMergeSampler.create_from_dist(dist, partition_prior, num_anchors=None)
 gibbs_sampler = CollapsedGibbsSampler(dist, partition_prior)
 
 num_data_points = data.shape[0]
 
 with Timer() as t:
-    pred_clustering = np.zeros(data.shape[0])
-    for i in range(1000):
+    pred_clustering = np.zeros(num_data_points)
+    for i in range(100):
         if i % 10 == 0:
             t.stop()
             print_info(pred_clustering, true_clustering, i, t.elapsed)
