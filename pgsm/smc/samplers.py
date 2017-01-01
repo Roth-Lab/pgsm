@@ -151,7 +151,7 @@ class SMCSampler(object):
             if len(p.block_params_) > 1:
                 collapse = False
                 break
-        if collapse:
+        if collapse and self.verbose:
             print 'Particle swarm has collapsed to merge'
         return collapse
 
