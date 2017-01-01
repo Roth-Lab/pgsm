@@ -21,7 +21,7 @@ class CollapsedGibbsSampler(object):
         self.dist = dist
         self.partition_prior = partition_prior
 
-    def sample(self, clustering, data, num_iters=1000):
+    def sample(self, clustering, data, num_iters=1):
         tables = self._get_tables(clustering, data)
         for _ in range(num_iters):
             clustering, tables = self._resample_params(clustering, data, tables)
