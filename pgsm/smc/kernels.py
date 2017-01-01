@@ -226,7 +226,11 @@ class AnnealedSplitMergeKernel(AbstractSplitMergKernel):
         if generation < self.num_anchors:
             log_annealing_correction = 0
         elif generation == self.num_anchors:
-            log_annealing_correction = (1 / len(self.data)) * self.log_target_density(block_params)
+            num_non_anchors = len(self.data)
+            if num_non_anchors == 0:
+                log_annealing_correction = self.log_target_density(block_params)
+            else:
+                log_annealing_correction = (1 / len(self.data)) * self.log_target_density(block_params)
         else:
             log_annealing_correction = parent_particle.log_annealing_correction
 
