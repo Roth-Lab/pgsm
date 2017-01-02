@@ -26,9 +26,9 @@ class ParticleGibbsSplitMergeSampler(object):
             kernel = pgsm.smc.kernels.FullyAdaptedSplitMergeKernel(dist, partition_prior)
         smc_sampler = pgsm.smc.samplers.ImplicitParticleGibbsSampler(
             num_particles,
-            resample_threshold=resample_threshold
+            resample_threshold=resample_threshold,
         )
-        return cls(kernel, smc_sampler)
+        return cls(kernel, smc_sampler, num_anchors=num_anchors)
 
     def __init__(self, kernel, smc_sampler, num_anchors=None):
         self.kernel = kernel
