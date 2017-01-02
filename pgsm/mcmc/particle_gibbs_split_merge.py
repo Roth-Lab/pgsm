@@ -36,6 +36,14 @@ class ParticleGibbsSplitMergeSampler(object):
 
         self.num_anchors = num_anchors
 
+    @property
+    def dist(self):
+        return self.kernel.dist
+
+    @property
+    def partition_prior(self):
+        return self.kernel.partition_prior
+
     def sample(self, clustering, data, num_iters=1):
         for _ in range(num_iters):
             anchors, sigma = self._setup_split_merge(clustering)
