@@ -3,6 +3,8 @@ Created on 8 Dec 2016
 
 @author: Andrew Roth
 '''
+from __future__ import division
+
 import numpy as np
 import scipy.stats as stats
 

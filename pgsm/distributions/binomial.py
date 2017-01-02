@@ -1,3 +1,8 @@
+'''
+Created on 8 Dec 2016
+
+@author: Andrew Roth
+'''
 from __future__ import division
 
 from scipy.special import betaln as log_beta

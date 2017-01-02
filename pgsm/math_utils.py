@@ -1,6 +1,9 @@
-from __future__ import division
+'''
+Created on 8 Dec 2016
 
-# from scipy.misc import logsumexp as log_sum_exp
+@author: Andrew Roth
+'''
+from __future__ import division
 
 import math
 import numba
