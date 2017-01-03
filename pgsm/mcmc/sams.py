@@ -24,14 +24,21 @@ class SequentiallyAllocatedMergeSplitSampler(object):
 
     def _sample(self, clustering, data):
         anchors, sigma = setup_split_merge(clustering, 2)
-        _, unchanged_block_sizes = np.unique([x for x in clustering if x not in sigma], return_counts=True)
-        merge_clustering, merge_mh_factor = self._merge(data, sigma, unchanged_block_sizes)
-        split_clustering, split_mh_factor = self._split(data, sigma, unchanged_block_sizes)
+        num_anchor_blocks = len(np.unique([clustering[a] for a in anchors]))
+        num_global_blocks = len(np.unique(clustering))
+        num_outside_blocks = num_global_blocks - num_anchor_blocks
+        merge_clustering, merge_mh_factor = self._merge(data[sigma], num_outside_blocks)
         if clustering[anchors[0]] == clustering[anchors[1]]:
+            split_clustering, split_mh_factor = self._split(data[sigma], num_outside_blocks)
             forward_factor = split_mh_factor
             reverse_factor = merge_mh_factor
             restricted_clustering = np.array(split_clustering, dtype=int)
         else:
+            split_clustering, split_mh_factor = self._split(
+                data[sigma],
+                num_outside_blocks,
+                constrained_path=clustering[sigma]
+            )
             forward_factor = merge_mh_factor
             reverse_factor = split_mh_factor
             restricted_clustering = np.array(merge_clustering, dtype=int)
@@ -43,43 +50,43 @@ class SequentiallyAllocatedMergeSplitSampler(object):
             clustering = relabel_clustering(clustering)
         return clustering
 
-    def _merge(self, data, sigma, unchanged_block_sizes):
-        clustering = [0, ] * len(sigma)
+    def _merge(self, data, num_outside_blocks):
+        clustering = [0, ] * len(data)
         log_q = 0
-        params = [self.dist.create_params(), ]
-        for x in data[sigma]:
-            params[0].increment(x)
-        block_sizes = list(unchanged_block_sizes) + [x.N for x in params]
-        log_p = self._log_p(block_sizes, params)
+        params = self.dist.create_params()
+        for data_point in data:
+            params.increment(data_point)
+        log_p = self.partition_prior.log_tau_1(num_outside_blocks + 1) + self.partition_prior.log_tau_2(params.N) + \
+            self.dist.log_marginal_likelihood(params)
         mh_factor = log_p - log_q
         return clustering, mh_factor
 
-    def _split(self, data, sigma, unchanged_block_sizes):
+    def _split(self, data, num_outside_blocks, constrained_path=None):
+        if constrained_path is not None:
+            constrained_path = relabel_clustering(constrained_path)
         clustering = [0, 1]
         log_q = 0
         params = [self.dist.create_params(), self.dist.create_params()]
         for i in range(2):
-            params[i].increment(data[sigma[i]])
-        for idx in sigma[2:]:
-            data_point = data[idx]
+            params[i].increment(data[i])
+        for i, data_point in enumerate(data[2:]):
             log_block_probs = []
             for cluster_params in params:
-                log_block_probs.append(
-                    np.log(cluster_params.N + 1) + self.dist.log_marginal_likelihood_diff(data_point, cluster_params)
-                )
-            log_block_probs = np.array(log_block_probs)
-            log_block_probs = log_normalize(log_block_probs)
-            block_probs = np.exp(log_block_probs)
-            block_probs = block_probs / block_probs.sum()
-            c = discrete_rvs(block_probs)
+                log_p_c = self.partition_prior.log_tau_2_diff(cluster_params.N) + \
+                    self.dist.log_marginal_likelihood_diff(data_point, cluster_params)
+                log_block_probs.append(log_p_c)
+            if constrained_path is None:
+                log_block_probs = np.array(log_block_probs)
+                log_block_probs = log_normalize(log_block_probs)
+                block_probs = np.exp(log_block_probs)
+                block_probs = block_probs / block_probs.sum()
+                c = discrete_rvs(block_probs)
+            else:
+                c = constrained_path[i]
             clustering.append(c)
             log_q += log_block_probs[c]
             params[c].increment(data_point)
-        block_sizes = list(unchanged_block_sizes) + [x.N for x in params]
-        log_p = self._log_p(block_sizes, params)
+        log_p = self.partition_prior.log_tau_1(num_outside_blocks + 2) + \
+            sum([self.partition_prior.log_tau_2(x.N) + self.dist.log_marginal_likelihood(x) for x in params])
         mh_factor = log_p - log_q
         return clustering, mh_factor
-
-    def _log_p(self, block_sizes, params):
-        return self.partition_prior.log_likelihood(block_sizes) + \
-            sum([self.dist.log_marginal_likelihood(x) for x in params])
