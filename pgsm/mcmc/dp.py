@@ -10,7 +10,7 @@ from pgsm.mcmc.concentration import GammaPriorConcentrationSampler
 
 class DirichletProcessSampler(object):
 
-    def __init__(self, partition_sampler, init_alpha=1.0, prior_a=1.0, prior_b=1.0):
+    def __init__(self, partition_sampler, prior_a=1.0, prior_b=1.0):
         self.partition_sampler = partition_sampler
 
         self.concentration_sampler = GammaPriorConcentrationSampler(prior_a, prior_b)
