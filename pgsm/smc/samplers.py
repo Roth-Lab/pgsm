@@ -219,7 +219,7 @@ class ImplicitParticleGibbsSampler(SMCSampler):
             for parent_log_W, parent_multiplicity, parent_particle in swarm:
                 is_constrained_parent = (parent_particle == constrained_particle.parent_particle)
                 log_q = kernel.get_log_q(data_point, parent_particle)
-                block_probs, log_q_norm = exp_normalize(log_q.values())
+                block_probs, log_q_norm = exp_normalize(np.array(log_q.values()))
                 if is_constrained_parent:
                     multiplicities = np.random.multinomial(parent_multiplicity - 1, block_probs)
                     multiplicities[log_q.keys().index(constrained_particle.block_idx)] += 1
