@@ -59,14 +59,13 @@ class CollapsedGibbsSampler(object):
             customer_data_point = data[customer_idx]
             table_idx = self._find_table(customer_idx, tables)
             tables[table_idx].remove_customer(customer_idx, customer_data_point)
+            tables = [t for t in tables if t.dish.N > 0]
             log_p = np.zeros(len(tables) + 1, dtype=np.float64)
             new_params = self.dist.create_params()
             new_params.increment(customer_data_point)
             log_p[-1] = self.partition_prior.log_tau_1_diff(len(tables)) + self.partition_prior.log_tau_2(1) + \
                 self.dist.log_marginal_likelihood(new_params)
             for c, table in enumerate(tables):
-                if table.dish.N == 0:
-                    continue
                 log_p[c] = self.partition_prior.log_tau_2_diff(table.dish.N) + \
                     self.dist.log_marginal_likelihood_diff(customer_data_point, table.dish)
             p, _ = exp_normalize(log_p)
@@ -76,7 +75,6 @@ class CollapsedGibbsSampler(object):
                 dish = self.dist.create_params()
                 tables.append(Table(dish))
             tables[new_table_idx].add_customer(customer_idx, customer_data_point)
-            tables = [t for t in tables if t.dish.N > 0]
 
         return self._prune(clustering, tables)
 
