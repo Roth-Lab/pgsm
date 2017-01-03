@@ -16,7 +16,6 @@ def discrete_rvs(p):
 
 @numba.jit(cache=True, nopython=True)
 def exp_normalize(log_p):
-    log_p = np.array(log_p)
     log_norm = log_sum_exp(log_p)
     p = np.exp(log_p - log_norm)
     p = p / p.sum()

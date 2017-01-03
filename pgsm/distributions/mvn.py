@@ -11,6 +11,14 @@ import numpy as np
 from pgsm.math_utils import cholesky_log_det, cholesky_update, log_gamma
 
 
+@numba.jitclass([
+    ('dim', numba.int64),
+    ('nu', numba.float64),
+    ('r', numba.float64),
+    ('u', numba.float64[:]),
+    ('S_chol', numba.float64[:, :]),
+    ('log_det_S', numba.float64),
+])
 class MultivariateNormalPriors(object):
 
     def __init__(self, dim):
@@ -64,13 +72,19 @@ class MultivariateNormalParameters(object):
         self.N += 1
         self.S_chol = cholesky_update(self.S_chol, np.sqrt(self.r / (self.r - 1)) * (x - self.u), 1)
 
+priors_type = numba.deferred_type()
+priors_type.define(MultivariateNormalPriors.class_type.instance_type)
 
+
+@numba.jitclass([
+    ('priors', priors_type),
+])
 class MultivariateNormalDistribution(object):
 
-    def __init__(self, dim, priors=None):
-        if priors is None:
-            priors = MultivariateNormalPriors(dim)
-        self.priors = priors
+    def __init__(self, dim):  # , priors=None):
+        #         if priors is None:
+        #         priors = MultivariateNormalPriors(dim)
+        self.priors = MultivariateNormalPriors(dim)
 
     def create_params(self):
         return MultivariateNormalParameters(
@@ -112,3 +126,10 @@ class MultivariateNormalDistribution(object):
             0.5 * D * (np.log(params.r) - np.log(params.r + 1)) + \
             0.5 * (params.nu * cholesky_log_det(params.S_chol) - (params.nu + 1) * cholesky_log_det(S_chol)) + \
             log_gamma(0.5 * (params.nu + 1)) - log_gamma(0.5 * (params.nu + 1 - D))
+
+    def log_marginal_likelihood_diff_bulk(self, data, params):
+        N = data.shape[0]
+        result = np.zeros(N, dtype=np.float64)
+        for n in range(N):
+            result[n] = self.log_marginal_likelihood_diff(data[n], params)
+        return result
