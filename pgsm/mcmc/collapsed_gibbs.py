@@ -38,7 +38,7 @@ class CollapsedGibbsSampler(object):
     def sample(self, clustering, data, num_iters=1):
         tables = self._get_tables(clustering, data)
         for _ in range(num_iters):
-            clustering, tables = self._resample_params(clustering, data, tables)
+            clustering, tables = self._resample_partition(clustering, data, tables)
         return clustering
 
     def _get_tables(self, clustering, data):
@@ -51,7 +51,7 @@ class CollapsedGibbsSampler(object):
                 tables[-1].add_customer(i, data[i])
         return tables
 
-    def _resample_params(self, clustering, data, tables):
+    def _resample_partition(self, clustering, data, tables):
         num_data_points = data.shape[0]
         idx = np.arange(num_data_points)
         np.random.shuffle(idx)
@@ -60,16 +60,7 @@ class CollapsedGibbsSampler(object):
             table_idx = self._find_table(customer_idx, tables)
             tables[table_idx].remove_customer(customer_idx, customer_data_point)
             tables = [t for t in tables if t.dish.N > 0]
-            log_p = np.zeros(len(tables) + 1, dtype=np.float64)
-            new_params = self.dist.create_params()
-            new_params.increment(customer_data_point)
-            log_p[-1] = self.partition_prior.log_tau_1_diff(len(tables)) + self.partition_prior.log_tau_2(1) + \
-                self.dist.log_marginal_likelihood(new_params)
-            for c, table in enumerate(tables):
-                log_p[c] = self.partition_prior.log_tau_2_diff(table.dish.N) + \
-                    self.dist.log_marginal_likelihood_diff(customer_data_point, table.dish)
-            p, _ = exp_normalize(log_p)
-            new_table_idx = np.random.multinomial(1, p).argmax()
+            new_table_idx = self._resample_customer_table_idx(customer_data_point, tables)
             is_new_table = (new_table_idx == len(tables))
             if is_new_table:
                 dish = self.dist.create_params()
@@ -77,6 +68,24 @@ class CollapsedGibbsSampler(object):
             tables[new_table_idx].add_customer(customer_idx, customer_data_point)
 
         return self._prune(clustering, tables)
+
+    def _resample_customer_table_idx(self, customer_data_point, tables):
+        log_p = np.zeros(len(tables) + 1, dtype=np.float64)
+        log_p[-1] = self._log_prob_new_table(customer_data_point, len(tables))
+        for c, table in enumerate(tables):
+            log_p[c] = self._log_prob_join_table(customer_data_point, table.dish)
+        p, _ = exp_normalize(log_p)
+        new_table_idx = np.random.multinomial(1, p).argmax()
+        return new_table_idx
+
+    def _log_prob_new_table(self, data_point, num_tables):
+        new_params = self.dist.create_params()
+        new_params.increment(data_point)
+        return self.partition_prior.log_tau_1_diff(num_tables) + self.partition_prior.log_tau_2(1) + \
+            self.dist.log_marginal_likelihood(new_params)
+
+    def _log_prob_join_table(self, data_point, dish):
+        return self.partition_prior.log_tau_2_diff(dish.N) + self.dist.log_predictive_likelihood(data_point, dish)
 
     def _prune(self, clustering, tables):
         tables = [x for x in tables if x.dish.N > 0]
