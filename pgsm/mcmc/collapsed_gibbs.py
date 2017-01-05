@@ -45,10 +45,10 @@ class CollapsedGibbsSampler(object):
         tables = []
         for z in np.unique(clustering):
             idx = np.argwhere(clustering == z).flatten()
-            dish = self.dist.create_params()
-            tables.append(Table(dish))
-            for i in idx:
-                tables[-1].add_customer(i, data[i])
+            dish = self.dist.create_params_from_data(data[idx])
+            table = Table(dish)
+            table.customers.update(idx)
+            tables.append(table)
         return tables
 
     def _resample_partition(self, clustering, data, tables):

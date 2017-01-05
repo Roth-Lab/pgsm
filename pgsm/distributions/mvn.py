@@ -30,6 +30,10 @@ class MultivariateNormalPriors(object):
         self.S_chol = np.linalg.cholesky(np.eye(dim))
         self.log_det_S = cholesky_log_det(self.S_chol)
 
+    @property
+    def S(self):
+        return np.dot(self.S_chol, np.conj(self.S_chol.T))
+
 
 @numba.jitclass([
     ('nu', numba.float64),
@@ -72,6 +76,7 @@ class MultivariateNormalParameters(object):
         self.N += 1
         self.S_chol = cholesky_update(self.S_chol, np.sqrt(self.r / (self.r - 1)) * (x - self.u), 1)
 
+
 priors_type = numba.deferred_type()
 priors_type.define(MultivariateNormalPriors.class_type.instance_type)
 
@@ -93,6 +98,22 @@ class MultivariateNormalDistribution(object):
             self.priors.u.copy(),
             self.priors.S_chol.copy(),
             0)
+
+    def create_params_from_data(self, X):
+        D = X.shape[1]
+        N = X.shape[0]
+        nu = self.priors.nu + N
+        r = self.priors.r + N
+        X_sum = np.zeros(D)
+        for n in range(N):
+            X_sum += X[n]
+        u = (self.priors.r * self.priors.u + X_sum) / r
+        S = self.priors.S + \
+            np.dot(X.T, X) + \
+            self.priors.r * np.outer(self.priors.u, self.priors.u) - \
+            r * np.outer(u, u)
+        S_chol = np.linalg.cholesky(S)
+        return MultivariateNormalParameters(nu, r, u, S_chol, N)
 
     def log_marginal_likelihood(self, params):
         D = self.priors.dim
