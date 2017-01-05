@@ -28,11 +28,11 @@ class GammaPriorConcentrationSampler(object):
         b = self.b
         k = num_clusters
         n = num_data_points
-        eta = stats.beta.rvs(old_value + 1, n)
+        eta = stats.beta.rvs(a=old_value + 1, b=n)
         shape = (a + k - 1)
         scale = b - np.log(eta)
         x = shape / (n * scale)
         pi = x / (1 + x)
         shape += stats.bernoulli.rvs(pi)
-        new_value = stats.gamma.rvs(shape, scale)
+        new_value = stats.gamma.rvs(shape, scale=(1 / scale))
         return new_value
