@@ -202,7 +202,7 @@ class FullyAdaptedSplitMergeKernel(AbstractSplitMergKernel):
         log_q = {}
         for block_idx, params in enumerate(parent_particle.block_params_):
             log_q[block_idx] = self.partition_prior.log_tau_2_diff(params.N)
-            log_q[block_idx] += self.dist.log_marginal_likelihood_diff(data_point, params)
+            log_q[block_idx] += self.dist.log_predictive_likelihood(data_point, params)
         return log_q
 
     def _create_particle(self, block_idx, block_params, data_point, log_q, log_q_norm, parent_particle):
@@ -223,7 +223,7 @@ class AnnealedSplitMergeKernel(AbstractSplitMergKernel):
         for block_idx, params in enumerate(parent_particle.block_params_):
             log_q[block_idx] = parent_particle.log_annealing_correction
             log_q[block_idx] += self.partition_prior.log_tau_2_diff(params.N)
-            log_q[block_idx] += self.dist.log_marginal_likelihood_diff(data_point, params)
+            log_q[block_idx] += self.dist.log_predictive_likelihood(data_point, params)
         return log_q
 
     def _create_particle(self, block_idx, block_params, data_point, log_q, log_q_norm, parent_particle):

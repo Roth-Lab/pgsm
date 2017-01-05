@@ -47,5 +47,5 @@ class Binomial(object):
     def log_marginal_likelihood(self, params):
         return log_beta(params.a, params.b) - log_beta(self.priors.a, self.priors.b)
 
-    def log_marginal_likelihood_diff(self, data_point, params):
+    def log_predictive_likelihood(self, data_point, params):
         return log_beta(params.a + data_point[0], params.b + data_point[1]) - log_beta(params.a, params.b)

@@ -103,7 +103,7 @@ class MultivariateNormalDistribution(object):
             0.5 * (self.priors.nu * self.priors.log_det_S - params.nu * params.log_det_S) + \
             np.sum(log_gamma(0.5 * (params.nu + 1 - d)) - log_gamma(0.5 * (self.priors.nu + 1 - d)))
 
-    def log_marginal_likelihood_diff(self, data_point, params):
+    def log_predictive_likelihood(self, data_point, params):
         '''
         Compute difference between marginal log likelihood with and without data point.
 
@@ -127,9 +127,9 @@ class MultivariateNormalDistribution(object):
             0.5 * (params.nu * cholesky_log_det(params.S_chol) - (params.nu + 1) * cholesky_log_det(S_chol)) + \
             log_gamma(0.5 * (params.nu + 1)) - log_gamma(0.5 * (params.nu + 1 - D))
 
-    def log_marginal_likelihood_diff_bulk(self, data, params):
+    def log_predictive_likelihood_bulk(self, data, params):
         N = data.shape[0]
         result = np.zeros(N, dtype=np.float64)
         for n in range(N):
-            result[n] = self.log_marginal_likelihood_diff(data[n], params)
+            result[n] = self.log_predictive_likelihood(data[n], params)
         return result

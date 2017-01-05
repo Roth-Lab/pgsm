@@ -73,7 +73,7 @@ class SequentiallyAllocatedMergeSplitSampler(object):
             log_block_probs = []
             for cluster_params in params:
                 log_p_c = self.partition_prior.log_tau_2_diff(cluster_params.N) + \
-                    self.dist.log_marginal_likelihood_diff(data_point, cluster_params)
+                    self.dist.log_predictive_likelihood(data_point, cluster_params)
                 log_block_probs.append(log_p_c)
             if constrained_path is None:
                 log_block_probs = np.array(log_block_probs)
