@@ -35,4 +35,5 @@ class GammaPriorConcentrationSampler(object):
         pi = x / (1 + x)
         shape += stats.bernoulli.rvs(pi)
         new_value = stats.gamma.rvs(shape, scale=(1 / scale))
+        new_value = max(new_value, 1e-10)  # Catch numerical error
         return new_value
