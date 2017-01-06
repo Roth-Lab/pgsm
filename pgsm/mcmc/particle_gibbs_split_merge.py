@@ -25,6 +25,7 @@ class ParticleGibbsSplitMergeSampler(object):
             num_particles=20,
             resample_threshold=0.5,
             use_annealed=True):
+
         if use_annealed:
             kernel = pgsm.smc.kernels.AnnealedSplitMergeKernel(dist, partition_prior)
         else:
@@ -38,7 +39,6 @@ class ParticleGibbsSplitMergeSampler(object):
     def __init__(self, kernel, smc_sampler, num_anchors=None):
         self.kernel = kernel
         self.smc_sampler = smc_sampler
-
         self.num_anchors = num_anchors
 
     @property

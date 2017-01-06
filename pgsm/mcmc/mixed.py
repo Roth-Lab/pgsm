@@ -13,9 +13,7 @@ class MixedSampler(object):
     def __init__(self, dist, partition_prior, gibbs_per_split_merge=1, split_merge_sampler='pgsm', **kwargs):
         self.dist = dist
         self.partition_prior = partition_prior
-
         self.gibbs_per_split_merge = gibbs_per_split_merge
-
         self.gibbs_sampler = CollapsedGibbsSampler(dist, partition_prior)
         if split_merge_sampler == 'pgsm':
             self.split_merge_sampler = ParticleGibbsSplitMergeSampler.create_from_dist(dist, partition_prior, **kwargs)

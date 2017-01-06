@@ -14,7 +14,6 @@ class Table(object):
 
     def __init__(self, dish):
         self.dish = dish
-
         self.customers = set()
 
     def __contains__(self, idx):
@@ -66,7 +65,6 @@ class CollapsedGibbsSampler(object):
                 dish = self.dist.create_params()
                 tables.append(Table(dish))
             tables[new_table_idx].add_customer(customer_idx, customer_data_point)
-
         return self._prune(clustering, tables)
 
     def _resample_customer_table_idx(self, customer_data_point, tables):
