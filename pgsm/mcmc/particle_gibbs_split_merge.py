@@ -5,8 +5,6 @@ Created on 8 Dec 2016
 '''
 from __future__ import division
 
-import numpy as np
-
 from pgsm.math_utils import discrete_rvs
 from pgsm.particle_utils import get_cluster_labels
 from pgsm.utils import setup_split_merge, relabel_clustering
@@ -73,8 +71,8 @@ class ParticleGibbsSplitMergeSampler(object):
 
     def _setup_split_merge(self, clustering):
         if self.num_anchors is None:
-            num_anchors = np.random.poisson(0.8) + 2
-            num_anchors = min(num_anchors, 6)
+            p = [0.6, 0.2, 0.1, 0.05, 0.025, 0.0125, 0.0125]
+            num_anchors = discrete_rvs(p) + 2
         else:
             num_anchors = self.num_anchors
         return setup_split_merge(clustering, num_anchors)
