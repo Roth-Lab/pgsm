@@ -10,7 +10,6 @@ import random
 
 from pgsm.math_utils import exp_normalize, log_sum_exp
 from pgsm.particle_utils import get_constrained_path
-from pgsm.smc.samplers import ParticleSwarm
 
 
 class SplitMergeParticle(object):
@@ -20,6 +19,10 @@ class SplitMergeParticle(object):
         self.block_params_ = block_params  # Only access this if you won't modify
         self.log_w = log_w
         self.parent_particle = parent_particle
+        if len(self.block_params_) == 0:
+            self.generation = 0
+        else:
+            self.generation = sum([x.N for x in self.block_params_])
 
     @property
     def block_params(self):
@@ -57,6 +60,15 @@ class AbstractSplitMergKernel(object):
         self.dist = dist
         self.partition_prior = partition_prior
 
+    def can_add_block(self, parent_particle):
+        '''
+        Check if a descendant particle can add a new block.
+        '''
+        if parent_particle is None:
+            return True
+        else:
+            return (parent_particle.generation < self.num_anchors)
+
     def create_initial_particle(self, data_point):
         return self.create_particle(0, data_point, None)
 
@@ -87,7 +99,7 @@ class AbstractSplitMergKernel(object):
             random.seed(seed)
             np.random.seed(seed)
         log_q = self.get_log_q(data_point, parent_particle)
-        block_probs, log_q_norm = exp_normalize(log_q.values())
+        block_probs, log_q_norm = exp_normalize(np.array(log_q.values()))
         block_idx = np.random.multinomial(1, block_probs).argmax()
         block_idx = log_q.keys()[block_idx]
         return self.create_particle(block_idx, data_point, parent_particle, log_q=log_q, log_q_norm=log_q_norm)
@@ -97,50 +109,11 @@ class AbstractSplitMergKernel(object):
         Setup kernel for a split merge run based on anchors, current clustering, data and permutation of indices.
         '''
         self.num_anchors = len(anchors)
+        self.num_generations = len(sigma)
         num_anchor_blocks = len(np.unique([clustering[a] for a in anchors]))
         num_global_blocks = len(np.unique(clustering))
         self.num_outside_blocks = num_global_blocks - num_anchor_blocks
-
-        permuted_clustering = clustering[sigma]
-        permuted_data = data[sigma]
-        self.data = permuted_data[self.num_anchors:]
-        constrained_path = get_constrained_path(permuted_clustering, permuted_data, self)
-        self.constrained_path = constrained_path[self.num_anchors:]
-
-        anchor_constrained_path = constrained_path[:self.num_anchors]
-        anchor_data = permuted_data[:self.num_anchors]
-        unweighted_swarm = self._create_unweighted_init_swarm(anchor_constrained_path, anchor_data)
-        self.init_swarm = self._create_weighted_init_swarm(unweighted_swarm)
-
-    def _create_unweighted_init_swarm(self, anchor_constrained_path, anchor_data):
-        '''
-        Create a swarm which contains all possible particles that could be created from the anchors.
-        '''
-        swarm = ParticleSwarm()
-        swarm.add_particle(0, anchor_constrained_path[0])
-        for constrained_particle, data_point in zip(anchor_constrained_path[1:], anchor_data[1:]):
-            new_swarm = ParticleSwarm()
-            for parent_particle in swarm.particles:
-                is_constrained_parent = (parent_particle == constrained_particle.parent_particle)
-                num_blocks = len(parent_particle.block_params_)
-                for block_idx in range(num_blocks + 1):
-                    if is_constrained_parent and (block_idx == constrained_particle.block_idx):
-                        particle = constrained_particle
-                    else:
-                        particle = self.create_particle(block_idx, data_point, parent_particle, log_q=0, log_q_norm=0)
-                    new_swarm.add_particle(0, particle)
-            swarm = new_swarm
-        return swarm
-
-    def _create_weighted_init_swarm(self, unweighted_swarm):
-        swarm = ParticleSwarm()
-        for particle in unweighted_swarm.particles:
-            particle.log_w = self.log_target_density(particle.block_params_)
-            # Prune particles with 0 probability
-            if np.isneginf(particle.log_w):
-                continue
-            swarm.add_particle(particle.log_w, particle)
-        return swarm
+        self.constrained_path = get_constrained_path(clustering[sigma], data[sigma], self)
 
     def _get_block_params(self, block_idx, data_point, parent_particle):
         '''
@@ -176,21 +149,37 @@ class UniformSplitMergeKernel(AbstractSplitMergKernel):
     '''
 
     def get_log_q(self, data_point, parent_particle):
+        if parent_particle is None:
+            block_params = []
+        else:
+            block_params = parent_particle.block_params_
+
         log_q = {}
-        for block_idx, _ in enumerate(parent_particle.block_params_):
+
+        for block_idx, _ in enumerate(block_params):
             log_q[block_idx] = 0
+
+        if self.can_add_block(parent_particle):
+            block_idx = len(block_params)
+            log_q[block_idx] = 0
+
         return log_q
 
     def _create_particle(self, block_idx, block_params, data_point, log_q, log_q_norm, parent_particle):
-        # Ratio of target densities
-        log_w = self.log_target_density(block_params) - self.log_target_density(parent_particle.block_params_)
-        # Proposal contribution
-        log_w -= log_q[block_idx] - log_q_norm
+        # Initial particle
+        if parent_particle is None:
+            log_w = self.log_target_density(block_params) - log_q_norm
+        else:
+            # Ratio of target densities
+            log_w = self.log_target_density(block_params) - self.log_target_density(parent_particle.block_params_)
+            # Proposal contribution
+            log_w -= log_q_norm
         return SplitMergeParticle(
             block_idx=block_idx,
             block_params=block_params,
             log_w=log_w,
-            parent_particle=parent_particle)
+            parent_particle=parent_particle
+        )
 
 
 class FullyAdaptedSplitMergeKernel(AbstractSplitMergKernel):
@@ -199,18 +188,38 @@ class FullyAdaptedSplitMergeKernel(AbstractSplitMergKernel):
     '''
 
     def get_log_q(self, data_point, parent_particle):
+        if parent_particle is None:
+            block_params = []
+        else:
+            block_params = parent_particle.block_params_
+
         log_q = {}
-        for block_idx, params in enumerate(parent_particle.block_params_):
+
+        for block_idx, params in enumerate(block_params):
             log_q[block_idx] = self.partition_prior.log_tau_2_diff(params.N)
             log_q[block_idx] += self.dist.log_predictive_likelihood(data_point, params)
+
+        if self.can_add_block(parent_particle):
+            block_idx = len(block_params)
+            params = self.dist.create_params()
+            num_blocks = len(block_params)
+            log_q[block_idx] = self.partition_prior.log_tau_1_diff(self.num_outside_blocks + num_blocks + 1)
+            log_q[block_idx] += self.partition_prior.log_tau_2_diff(1)
+            log_q[block_idx] += self.dist.log_predictive_likelihood(data_point, params)
+
         return log_q
 
     def _create_particle(self, block_idx, block_params, data_point, log_q, log_q_norm, parent_particle):
+        if parent_particle is None:
+            log_w = self.log_target_density(block_params)
+        else:
+            log_w = log_q_norm
         return SplitMergeParticle(
             block_idx=block_idx,
             block_params=block_params,
-            log_w=log_q_norm,
-            parent_particle=parent_particle)
+            log_w=log_w,
+            parent_particle=parent_particle
+        )
 
 
 class AnnealedSplitMergeKernel(AbstractSplitMergKernel):
@@ -219,23 +228,48 @@ class AnnealedSplitMergeKernel(AbstractSplitMergKernel):
     '''
 
     def get_log_q(self, data_point, parent_particle):
+        if parent_particle is None:
+            block_params = []
+        else:
+            block_params = parent_particle.block_params_
+
         log_q = {}
-        for block_idx, params in enumerate(parent_particle.block_params_):
-            log_q[block_idx] = parent_particle.log_annealing_correction
-            log_q[block_idx] += self.partition_prior.log_tau_2_diff(params.N)
-            log_q[block_idx] += self.dist.log_predictive_likelihood(data_point, params)
+
+        # Sample uniformly from possible states if we are still adding anchor points
+        if self.can_add_block(parent_particle):
+            for block_idx, _ in enumerate(block_params):
+                log_q[block_idx] = 0
+            block_idx = len(block_params)
+            log_q[block_idx] = 0
+        # Otherwise do the normally fully adapted proposal plus the annealing correction
+        else:
+            for block_idx, params in enumerate(block_params):
+                log_q[block_idx] = parent_particle.log_annealing_correction
+                log_q[block_idx] += self.partition_prior.log_tau_2_diff(params.N)
+                log_q[block_idx] += self.dist.log_predictive_likelihood(data_point, params)
+
         return log_q
 
     def _create_particle(self, block_idx, block_params, data_point, log_q, log_q_norm, parent_particle):
-        generation = sum([x.N for x in block_params])
+        if parent_particle is None:
+            generation = 1
+        else:
+            generation = parent_particle.generation + 1
+
+        if parent_particle is None:
+            log_w = 0
+        else:
+            log_w = log_q_norm
+
         if generation < self.num_anchors:
-            log_annealing_correction = 0
+            log_annealing_correction = None
         elif generation == self.num_anchors:
-            num_non_anchors = len(self.data)
-            if num_non_anchors == 0:
+            n = self.num_generations
+            s = self.num_anchors
+            if n == s:
                 log_annealing_correction = self.log_target_density(block_params)
             else:
-                log_annealing_correction = (1 / len(self.data)) * self.log_target_density(block_params)
+                log_annealing_correction = (1 / (n - s)) * self.log_target_density(block_params)
         else:
             log_annealing_correction = parent_particle.log_annealing_correction
 
@@ -243,5 +277,6 @@ class AnnealedSplitMergeKernel(AbstractSplitMergKernel):
             block_idx=block_idx,
             block_params=block_params,
             log_annealing_correction=log_annealing_correction,
-            log_w=log_q_norm,
-            parent_particle=parent_particle)
+            log_w=log_w,
+            parent_particle=parent_particle
+        )

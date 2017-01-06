@@ -14,7 +14,6 @@ class ParticleSwarm(object):
 
     def __init__(self):
         self.particles = []
-
         self._log_norm_const = None
         self._unnormalized_log_weights = []
 
@@ -127,65 +126,92 @@ class SMCSampler(object):
     def resample_if_necessary(self, swarm, conditional_particle=None):
         if swarm.relative_ess <= self.resample_threshold:
             new_swarm = ParticleSwarm()
+
             if self.verbose:
                 print 'Resampling', swarm.relative_ess
+
             log_uniform_weight = -np.log(self.num_particles)
+
             if conditional_particle is None:
                 multiplicities = np.random.multinomial(self.num_particles, swarm.weights)
             else:
                 multiplicities = np.random.multinomial(self.num_particles - 1, swarm.weights)
                 new_swarm.add_particle(log_uniform_weight, conditional_particle)
+
             for particle, multiplicity in zip(swarm.particles, multiplicities):
                 for _ in range(multiplicity):
                     new_swarm.add_particle(log_uniform_weight, particle.copy())
+
         else:
             new_swarm = swarm
+
         return new_swarm
 
     def sample(self, data, kernel):
         raise NotImplemented()
 
-    def _check_collapse(self, particles):
-        collapse = True
-        for p in particles:
-            if len(p.block_params_) > 1:
-                collapse = False
-                break
-        if collapse and self.verbose:
-            print 'Particle swarm has collapsed to merge'
+    def _check_collapse(self, kernel, particles):
+        if kernel.can_add_block(particles[0]):
+            collapse = False
+        else:
+            collapse = True
+            for p in particles:
+                if len(p.block_params_) > 1:
+                    collapse = False
+                    break
         return collapse
 
 
 class IndependentSMCSampler(SMCSampler):
 
     def sample(self, data, kernel):
-        swarm = kernel.init_swarm
-        for data_point in kernel.data:
+        init_particle = kernel.create_initial_particle(data[0])
+
+        swarm = ParticleSwarm()
+        for _ in range(self.num_particles):
+            swarm.add_particle(0, init_particle.copy())
+
+        for data_point in data[1:]:
             new_swarm = ParticleSwarm()
+
             for parent_log_W, parent_particle in zip(swarm.log_weights, swarm.particles):
                 particle = kernel.propose(data_point, parent_particle)
                 new_swarm.add_particle(parent_log_W + particle.log_w, particle)
+
             swarm = self.resample_if_necessary(swarm)
-            if self._check_collapse(swarm.particles):
+
+            if self._check_collapse(kernel, swarm.particles):
                 return {kernel.constrained_path[-1]: 0}
+
         return swarm.to_dict()
 
 
 class ParticleGibbsSampler(SMCSampler):
 
     def sample(self, data, kernel):
-        swarm = kernel.init_swarm
-        for constrained_particle, data_point in zip(kernel.constrained_path, kernel.data):
+        constrained_path = kernel.constrained_path
+        init_particle = kernel.create_initial_particle(data[0])
+
+        swarm = ParticleSwarm()
+        for _ in range(self.num_particles - 1):
+            swarm.add_particle(0, init_particle.copy())
+        swarm.add_particle(0, constrained_path[0])
+
+        for constrained_particle, data_point in zip(constrained_path[1:], data[1:]):
             new_swarm = ParticleSwarm()
+
             for parent_log_W, parent_particle in zip(swarm.log_weights, swarm.particles):
                 if parent_particle == constrained_particle.parent_particle:
                     particle = constrained_particle
                 else:
                     particle = kernel.propose(data_point, parent_particle)
                 new_swarm.add_particle(parent_log_W + particle.log_w, particle)
+
             swarm = self.resample_if_necessary(new_swarm, conditional_particle=constrained_particle)
-            if self._check_collapse(swarm.particles):
+
+            if self._check_collapse(kernel, swarm.particles):
                 return {kernel.constrained_path[-1]: 0}
+
         return swarm.to_dict()
 
 
@@ -194,40 +220,55 @@ class ImplicitParticleGibbsSampler(SMCSampler):
     def resample_if_necessary(self, swarm, conditional_particle=None):
         if swarm.relative_ess <= self.resample_threshold:
             new_swarm = ImplicitParticleSwarm()
+
             if self.verbose:
                 print 'Resampling', swarm.relative_ess
+
             if conditional_particle is None:
                 multiplicities = np.random.multinomial(self.num_particles, swarm.aggregate_weights)
             else:
                 multiplicities = np.random.multinomial(self.num_particles - 1, swarm.aggregate_weights)
                 multiplicities[swarm.particles.index(conditional_particle)] += 1
+
             log_uniform_weight = -np.log(self.num_particles)
+
             for multiplicity, particle in zip(multiplicities, swarm.particles):
                 if multiplicity == 0:
                     continue
                 new_swarm.add_particle(log_uniform_weight, particle, multiplicity=multiplicity)
+
         else:
             new_swarm = swarm
+
         return new_swarm
 
     def sample(self, data, kernel):
+        constrained_path = kernel.constrained_path
+        init_particle = kernel.create_initial_particle(data[0])
+
         swarm = ImplicitParticleSwarm()
-        for log_weight, particle in zip(kernel.init_swarm.log_weights, kernel.init_swarm.particles):
-            swarm.add_particle(log_weight, particle, 1)
-        for constrained_particle, data_point in zip(kernel.constrained_path, kernel.data):
+        swarm.add_particle(0, init_particle, multiplicity=self.num_particles - 1)
+        swarm.add_particle(0, constrained_path[0], multiplicity=1)
+
+        for constrained_particle, data_point in zip(constrained_path[1:], data[1:]):
             new_swarm = ImplicitParticleSwarm()
+
             for parent_log_W, parent_multiplicity, parent_particle in swarm:
-                is_constrained_parent = (parent_particle == constrained_particle.parent_particle)
                 log_q = kernel.get_log_q(data_point, parent_particle)
                 block_probs, log_q_norm = exp_normalize(np.array(log_q.values()))
+
+                is_constrained_parent = (parent_particle == constrained_particle.parent_particle)
+
                 if is_constrained_parent:
                     multiplicities = np.random.multinomial(parent_multiplicity - 1, block_probs)
                     multiplicities[log_q.keys().index(constrained_particle.block_idx)] += 1
                 else:
                     multiplicities = np.random.multinomial(parent_multiplicity, block_probs)
+
                 for block_idx, multiplicity in zip(log_q.keys(), multiplicities):
                     if multiplicity == 0:
                         continue
+
                     if is_constrained_parent and (block_idx == constrained_particle.block_idx):
                         particle = constrained_particle
                     else:
@@ -238,8 +279,13 @@ class ImplicitParticleGibbsSampler(SMCSampler):
                             log_q=log_q,
                             log_q_norm=log_q_norm)
                     new_swarm.add_particle(parent_log_W + particle.log_w, particle, multiplicity=multiplicity)
+
             swarm = self.resample_if_necessary(new_swarm, conditional_particle=constrained_particle)
-            if self._check_collapse(swarm.particles):
+
+            if self._check_collapse(kernel, swarm.particles):
                 return {kernel.constrained_path[-1]: 0}
+
             assert constrained_particle in swarm.particles
+            assert swarm.num_particles == self.num_particles
+
         return swarm.to_dict()
