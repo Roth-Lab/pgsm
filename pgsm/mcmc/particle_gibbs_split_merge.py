@@ -17,6 +17,7 @@ class ParticleGibbsSplitMergeSampler(object):
     @classmethod
     def create_from_dist(
             cls,
+            anchor_proposal,
             dist,
             partition_prior,
             num_anchors=2,
@@ -35,7 +36,7 @@ class ParticleGibbsSplitMergeSampler(object):
             resample_threshold=resample_threshold,
         )
 
-        return cls(kernel, smc_sampler, num_anchors=num_anchors)
+        return cls(anchor_proposal, kernel, smc_sampler, num_anchors=num_anchors)
 
     def __init__(self, anchor_proposal, kernel, smc_sampler, num_anchors=None):
         self.anchor_proposal = anchor_proposal
