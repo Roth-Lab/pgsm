@@ -21,19 +21,31 @@ class GammaPriorConcentrationSampler(object):
             b : (float) Rate parameter of the gamma prior.
         '''
         self.a = a
+
         self.b = b
 
     def sample(self, old_value, num_clusters, num_data_points):
         a = self.a
+
         b = self.b
+
         k = num_clusters
+
         n = num_data_points
         eta = stats.beta.rvs(a=old_value + 1, b=n)
+
         shape = (a + k - 1)
+
         scale = b - np.log(eta)
+
         x = shape / (n * scale)
+
         pi = x / (1 + x)
+
         shape += stats.bernoulli.rvs(pi)
+
         new_value = stats.gamma.rvs(shape, scale=(1 / scale))
+
         new_value = max(new_value, 1e-10)  # Catch numerical error
+
         return new_value

@@ -25,9 +25,13 @@ class MultivariateNormalPriors(object):
         self.dim = dim
 
         self.nu = dim + 2
+
         self.r = 1
+
         self.u = np.zeros(dim)
+
         self.S_chol = np.linalg.cholesky(np.eye(dim))
+
         self.log_det_S = cholesky_log_det(self.S_chol)
 
     @property
@@ -46,9 +50,13 @@ class MultivariateNormalParameters(object):
 
     def __init__(self, nu, r, u, S_chol, N):
         self.nu = nu
+
         self.r = r
+
         self.u = u
+
         self.S_chol = S_chol
+
         self.N = N
 
     @property
@@ -64,16 +72,24 @@ class MultivariateNormalParameters(object):
 
     def decrement(self, x):
         self.S_chol = cholesky_update(self.S_chol, np.sqrt(self.r / (self.r - 1)) * (x - self.u), -1)
+
         self.nu -= 1
+
         self.r -= 1
+
         self.u = ((self.r + 1) * self.u - x) / self.r
+
         self.N -= 1
 
     def increment(self, x):
         self.nu += 1
+
         self.r += 1
+
         self.u = ((self.r - 1) * self.u + x) / self.r
+
         self.N += 1
+
         self.S_chol = cholesky_update(self.S_chol, np.sqrt(self.r / (self.r - 1)) * (x - self.u), 1)
 
 
@@ -101,24 +117,36 @@ class MultivariateNormalDistribution(object):
 
     def create_params_from_data(self, X):
         D = X.shape[1]
+
         N = X.shape[0]
+
         nu = self.priors.nu + N
+
         r = self.priors.r + N
+
         X_sum = np.zeros(D)
+
         for n in range(N):
             X_sum += X[n]
+
         u = (self.priors.r * self.priors.u + X_sum) / r
+
         S = self.priors.S + \
             np.dot(X.T, X) + \
             self.priors.r * np.outer(self.priors.u, self.priors.u) - \
             r * np.outer(u, u)
+
         S_chol = np.linalg.cholesky(S)
+
         return MultivariateNormalParameters(nu, r, u, S_chol, N)
 
     def log_marginal_likelihood(self, params):
         D = self.priors.dim
+
         N = params.N
+
         d = np.arange(1, D + 1)
+
         return -0.5 * N * D * np.log(np.pi) + \
             0.5 * D * (np.log(self.priors.r) - np.log(params.r)) + \
             0.5 * (self.priors.nu * self.priors.log_det_S - params.nu * params.log_det_S) + \
@@ -140,9 +168,13 @@ class MultivariateNormalDistribution(object):
 
         '''
         D = self.priors.dim
+
         u = (params.r * params.u + data_point) / (params.r + 1)
+
         diff = np.sqrt((params.r + 1) / params.r) * (data_point - u)
+
         S_chol = cholesky_update(params.S_chol, diff, 1, inplace=False)
+
         return -0.5 * D * np.log(np.pi) + \
             0.5 * D * (np.log(params.r) - np.log(params.r + 1)) + \
             0.5 * (params.nu * cholesky_log_det(params.S_chol) - (params.nu + 1) * cholesky_log_det(S_chol)) + \
@@ -150,7 +182,10 @@ class MultivariateNormalDistribution(object):
 
     def log_predictive_likelihood_bulk(self, data, params):
         N = data.shape[0]
+
         result = np.zeros(N, dtype=np.float64)
+
         for n in range(N):
             result[n] = self.log_predictive_likelihood(data[n], params)
+
         return result

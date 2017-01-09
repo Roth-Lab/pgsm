@@ -26,17 +26,22 @@ class ParticleGibbsSplitMergeSampler(object):
 
         if use_annealed:
             kernel = pgsm.smc.kernels.AnnealedSplitMergeKernel(dist, partition_prior)
+
         else:
             kernel = pgsm.smc.kernels.FullyAdaptedSplitMergeKernel(dist, partition_prior)
+
         smc_sampler = pgsm.smc.samplers.ImplicitParticleGibbsSampler(
             num_particles,
             resample_threshold=resample_threshold,
         )
+
         return cls(kernel, smc_sampler, num_anchors=num_anchors)
 
     def __init__(self, kernel, smc_sampler, num_anchors=None):
         self.kernel = kernel
+
         self.smc_sampler = smc_sampler
+
         self.num_anchors = num_anchors
 
     @property
@@ -50,29 +55,44 @@ class ParticleGibbsSplitMergeSampler(object):
     def sample(self, clustering, data, num_iters=1):
         for _ in range(num_iters):
             anchors, sigma = self._setup_split_merge(clustering)
+
             self.kernel.setup(anchors, clustering, data, sigma)
+
             particles_weights = self.smc_sampler.sample(data[sigma], self.kernel)
+
             sampled_particle = self._sample_particle(particles_weights)
+
             self._get_updated_clustering(clustering, sampled_particle, sigma)
+
             clustering = relabel_clustering(clustering)
+
         return clustering
 
     def _get_updated_clustering(self, clustering, particle, sigma):
         restricted_clustering = get_cluster_labels(particle)
+
         max_idx = clustering.max()
+
         clustering[sigma] = restricted_clustering + max_idx + 1
+
         return relabel_clustering(clustering)
 
     def _sample_particle(self, particles_weights):
         particles = particles_weights.keys()
+
         weights = particles_weights.values()
+
         particle_idx = discrete_rvs(weights)
+
         return particles[particle_idx]
 
     def _setup_split_merge(self, clustering):
         if self.num_anchors is None:
             p = [0.6, 0.2, 0.1, 0.05, 0.025, 0.0125, 0.0125]
+
             num_anchors = discrete_rvs(p) + 2
+
         else:
             num_anchors = self.num_anchors
+
         return setup_split_merge(clustering, num_anchors)

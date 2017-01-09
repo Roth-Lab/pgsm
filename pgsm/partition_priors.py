@@ -49,6 +49,7 @@ class FiniteDirichletPartitionPrior(PartitionPrior):
     def log_tau_1(self, x):
         if x == self.dim:
             return 0
+
         else:
             return float('-inf')
 
@@ -58,6 +59,7 @@ class FiniteDirichletPartitionPrior(PartitionPrior):
     def log_tau_1_diff(self, x):
         if x == (self.dim - 1):
             return 0
+
         else:
             return float('-inf')
 
