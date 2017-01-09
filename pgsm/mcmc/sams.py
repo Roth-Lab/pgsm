@@ -26,6 +26,9 @@ class SequentiallyAllocatedMergeSplitSampler(object):
 
         return clustering
 
+    def setup(self, data):
+        self.anchor_proposal.setup(data, self.dist)
+
     def _sample(self, clustering, data):
         anchors, sigma = setup_split_merge(self.anchor_proposal, clustering, 2)
 

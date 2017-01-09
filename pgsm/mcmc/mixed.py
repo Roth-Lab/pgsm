@@ -4,13 +4,11 @@ Created on 2 Jan 2017
 @author: Andrew Roth
 '''
 from pgsm.mcmc.collapsed_gibbs import CollapsedGibbsSampler
-from pgsm.mcmc.particle_gibbs_split_merge import ParticleGibbsSplitMergeSampler
-from pgsm.mcmc.sams import SequentiallyAllocatedMergeSplitSampler
 
 
 class MixedSampler(object):
 
-    def __init__(self, dist, partition_prior, gibbs_per_split_merge=1, split_merge_sampler='pgsm', **kwargs):
+    def __init__(self, dist, partition_prior, split_merge_sampler, gibbs_per_split_merge=1, **kwargs):
         self.dist = dist
 
         self.partition_prior = partition_prior
@@ -19,14 +17,7 @@ class MixedSampler(object):
 
         self.gibbs_sampler = CollapsedGibbsSampler(dist, partition_prior)
 
-        if split_merge_sampler == 'pgsm':
-            self.split_merge_sampler = ParticleGibbsSplitMergeSampler.create_from_dist(dist, partition_prior, **kwargs)
-
-        elif split_merge_sampler == 'sams':
-            self.split_merge_sampler = SequentiallyAllocatedMergeSplitSampler(dist, partition_prior)
-
-        else:
-            raise Exception('Unknown split merge sampler')
+        self.split_merge_sampler = split_merge_sampler
 
     def sample(self, clustering, data, num_iters=1):
         for _ in range(num_iters):
@@ -35,3 +26,8 @@ class MixedSampler(object):
             clustering = self.split_merge_sampler.sample(clustering, data, num_iters=1)
 
         return clustering
+
+    def setup(self, data):
+        self.gibbs_sampler.setup(data)
+
+        self.split_merge_sampler.setup(data)

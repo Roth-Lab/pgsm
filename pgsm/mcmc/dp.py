@@ -38,3 +38,6 @@ class DirichletProcessSampler(object):
             )
 
         return clustering
+
+    def setup(self, data):
+        self.partition_sampler.setup(data)

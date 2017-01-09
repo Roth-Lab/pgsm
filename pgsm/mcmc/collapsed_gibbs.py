@@ -46,6 +46,9 @@ class CollapsedGibbsSampler(object):
 
         return clustering
 
+    def setup(self, data):
+        pass
+
     def _get_tables(self, clustering, data):
         tables = []
 
