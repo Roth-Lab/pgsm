@@ -37,7 +37,9 @@ class ParticleGibbsSplitMergeSampler(object):
 
         return cls(kernel, smc_sampler, num_anchors=num_anchors)
 
-    def __init__(self, kernel, smc_sampler, num_anchors=None):
+    def __init__(self, anchor_proposal, kernel, smc_sampler, num_anchors=None):
+        self.anchor_proposal = anchor_proposal
+
         self.kernel = kernel
 
         self.smc_sampler = smc_sampler
@@ -95,4 +97,4 @@ class ParticleGibbsSplitMergeSampler(object):
         else:
             num_anchors = self.num_anchors
 
-        return setup_split_merge(clustering, num_anchors)
+        return setup_split_merge(self.anchor_proposal, clustering, num_anchors)

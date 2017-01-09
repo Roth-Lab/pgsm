@@ -13,7 +13,9 @@ from pgsm.utils import relabel_clustering, setup_split_merge
 
 class SequentiallyAllocatedMergeSplitSampler(object):
 
-    def __init__(self, dist, partition_prior):
+    def __init__(self, anchor_proposal, dist, partition_prior):
+        self.anchor_proposal = anchor_proposal
+
         self.dist = dist
 
         self.partition_prior = partition_prior
@@ -22,10 +24,10 @@ class SequentiallyAllocatedMergeSplitSampler(object):
         for _ in range(num_iters):
             clustering = self._sample(clustering, data)
 
-        return relabel_clustering(clustering)
+        return clustering
 
     def _sample(self, clustering, data):
-        anchors, sigma = setup_split_merge(clustering, 2)
+        anchors, sigma = setup_split_merge(self.anchor_proposal, clustering, 2)
 
         num_anchor_blocks = len(np.unique([clustering[a] for a in anchors]))
 
@@ -39,7 +41,7 @@ class SequentiallyAllocatedMergeSplitSampler(object):
 
         merge_clustering, merge_mh_factor = self._merge(data_sigma, num_outside_blocks)
 
-        if clustering[anchors[0]] == clustering[anchors[1]]:
+        if clustering_sigma[0] == clustering_sigma[1]:
             split_clustering, split_mh_factor = self._split(data_sigma, num_outside_blocks)
 
             forward_factor = split_mh_factor
@@ -77,14 +79,17 @@ class SequentiallyAllocatedMergeSplitSampler(object):
     def _merge(self, data, num_outside_blocks):
         num_blocks = 1
 
-        clustering = np.zeros(len(data), dtype=np.int)
+        clustering = np.ones(len(data), dtype=np.int)
 
         log_q = 0
 
         params = self.dist.create_params_from_data(data)
 
-        log_p = self.partition_prior.log_tau_1(num_outside_blocks + num_blocks) + \
-            self.partition_prior.log_tau_2(params.N) + self.dist.log_marginal_likelihood(params)
+        log_p = self.partition_prior.log_tau_1(num_outside_blocks + num_blocks)
+
+        log_p += self.partition_prior.log_tau_2(params.N)
+
+        log_p += self.dist.log_marginal_likelihood(params)
 
         mh_factor = log_p - log_q
 
@@ -109,8 +114,9 @@ class SequentiallyAllocatedMergeSplitSampler(object):
 
         for i, data_point in enumerate(data[num_blocks:]):
             for block_idx, cluster_params in enumerate(params):
-                log_block_probs[block_idx] = self.partition_prior.log_tau_2_diff(cluster_params.N) + \
-                    self.dist.log_predictive_likelihood(data_point, cluster_params)
+                log_block_probs[block_idx] = self.partition_prior.log_tau_2_diff(cluster_params.N)
+
+                log_block_probs[block_idx] += self.dist.log_predictive_likelihood(data_point, cluster_params)
 
             log_block_probs = log_normalize(log_block_probs)
 
@@ -130,8 +136,12 @@ class SequentiallyAllocatedMergeSplitSampler(object):
 
             params[c].increment(data_point)
 
-        log_p = self.partition_prior.log_tau_1(num_outside_blocks + num_blocks) + \
-            sum([self.partition_prior.log_tau_2(x.N) + self.dist.log_marginal_likelihood(x) for x in params])
+        log_p = self.partition_prior.log_tau_1(num_outside_blocks + num_blocks)
+
+        for block_params in params:
+            log_p += self.partition_prior.log_tau_2(block_params.N)
+
+            log_p += self.dist.log_marginal_likelihood(block_params)
 
         mh_factor = log_p - log_q
 

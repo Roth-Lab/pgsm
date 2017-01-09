@@ -71,14 +71,14 @@ def relabel_clustering(clustering):
     return np.array(relabeled, dtype=np.int)
 
 
-def setup_split_merge(clustering, num_anchors):
+def setup_split_merge(anchor_proposal, clustering, num_anchors):
     clustering = np.array(clustering, dtype=np.int)
 
     num_data_points = len(clustering)
 
     num_anchors = min(num_anchors, num_data_points)
 
-    anchors = np.random.choice(np.arange(num_data_points), replace=False, size=num_anchors)
+    anchors = anchor_proposal.propose_anchors(num_anchors)
 
     anchor_clusters = set([clustering[a] for a in anchors])
 
