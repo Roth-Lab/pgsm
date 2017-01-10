@@ -113,11 +113,20 @@ class CollapsedGibbsSampler(object):
 
         new_params.increment(data_point)
 
-        return self.partition_prior.log_tau_1_diff(num_tables) + self.partition_prior.log_tau_2(1) + \
-            self.dist.log_marginal_likelihood(new_params)
+        log_p = self.partition_prior.log_tau_1_diff(num_tables)
+
+        log_p += self.partition_prior.log_tau_2(1)
+
+        log_p += self.dist.log_marginal_likelihood(new_params)
+
+        return log_p
 
     def _log_prob_join_table(self, data_point, dish):
-        return self.partition_prior.log_tau_2_diff(dish.N) + self.dist.log_predictive_likelihood(data_point, dish)
+        log_p = self.partition_prior.log_tau_2_diff(dish.N)
+
+        log_p += self.dist.log_predictive_likelihood(data_point, dish)
+
+        return log_p
 
     def _prune(self, clustering, tables):
         tables = [x for x in tables if x.dish.N > 0]
