@@ -24,7 +24,7 @@ class UniformAnchorProposal(AnchorProposal):
         return np.random.choice(np.arange(self.num_data_points), replace=False, size=num_anchors)
 
     def setup(self, data, dist):
-        self.num_data_points = len(self.data)
+        self.num_data_points = len(data)
 
 
 class InformedAnchorProposal(AnchorProposal):
@@ -34,14 +34,36 @@ class InformedAnchorProposal(AnchorProposal):
 
         log_p_anchor = self.log_p[anchor_1].copy()
 
+#         x = np.percentile(log_p_anchor, 25)
+
+#         log_p_anchor[log_p_anchor > x] = float('-inf')
+        alpha = np.random.beta(2, 8) * 100
+
         if np.random.random() <= 0.5:
-            log_p_anchor = -log_p_anchor
+            #             log_p_anchor = -log_p_anchor
+            x = np.percentile(log_p_anchor, alpha)
+            log_p_anchor[log_p_anchor > x] = float('-inf')
+            log_p_anchor[log_p_anchor <= x] = 0
+        else:
+            x = np.percentile(log_p_anchor, 100 - alpha)
+            log_p_anchor[log_p_anchor > x] = 0
+            log_p_anchor[log_p_anchor <= x] = float('-inf')
 
         log_p_anchor[anchor_1] = float('-inf')
 
-        p, _ = exp_normalize(log_p_anchor)
+        if np.isneginf(np.max(log_p_anchor)):
+            idx = np.arange(self.num_data_points)
 
-        anchor_2 = discrete_rvs(p)
+            idx = list(idx)
+
+            idx.remove(anchor_1)
+
+            anchor_2 = np.random.choice(idx)
+
+        else:
+            p, _ = exp_normalize(log_p_anchor)
+
+            anchor_2 = discrete_rvs(p)
 
         return anchor_1, anchor_2
 
@@ -54,12 +76,10 @@ class InformedAnchorProposal(AnchorProposal):
 
         log_seperate_margs = dist.log_predictive_likelihood_bulk(data, params)
 
+        log_pairwise_margs = dist.log_pairwise_marginals(data, params)
+
         for i in range(self.num_data_points):
-            params = dist.create_params_from_data(np.atleast_2d(data[i]))
-
-            log_merged_margs = dist.log_predictive_likelihood_bulk(data, params)
-
             for j in range(i):
-                self.log_p[i, j] = 0.5 * log_merged_margs[j] - (log_seperate_margs[i] + log_seperate_margs[j])
+                self.log_p[i, j] = log_pairwise_margs[i, j] - (log_seperate_margs[i] + log_seperate_margs[j])
 
                 self.log_p[j, i] = self.log_p[i, j]
