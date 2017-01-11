@@ -19,6 +19,15 @@ def iter_particles(particle):
         particle = particle.parent_particle
 
 
+def get_log_normalisation(particle):
+    log_Z = 0
+
+    for particle in iter_particles(particle):
+        log_Z += particle.log_w
+
+    return log_Z
+
+
 def get_genealogy_length(particle):
     l = 0
 
