@@ -175,7 +175,7 @@ class UniformSplitMergeKernel(AbstractSplitMergKernel):
     def _create_particle(self, block_idx, block_params, data_point, log_q, log_q_norm, parent_particle):
         # Initial particle
         if parent_particle is None:
-            generation = 0
+            generation = 1
 
             log_w = self.log_target_density(block_params) - log_q_norm
 
@@ -233,7 +233,7 @@ class FullyAdaptedSplitMergeKernel(AbstractSplitMergKernel):
 
     def _create_particle(self, block_idx, block_params, data_point, log_q, log_q_norm, parent_particle):
         if parent_particle is None:
-            generation = 0
+            generation = 1
 
             log_w = self.log_target_density(block_params)
 
