@@ -63,7 +63,7 @@ class MultivariateNormalParameters(object):
         self.N += 1
 
 
-@numba.jit(nopython=True)
+@numba.jit(cache=True, nopython=True)
 def _decrement_params(data_point, nu, r, u, S_chol, inplace=False):
     S_chol = cholesky_update(S_chol, np.sqrt(r / (r - 1)) * (data_point - u), -1, inplace=inplace)
 
@@ -76,7 +76,7 @@ def _decrement_params(data_point, nu, r, u, S_chol, inplace=False):
     return nu, r, u, S_chol
 
 
-@numba.jit(nopython=True)
+@numba.jit(cache=True, nopython=True)
 def _increment_params(data_point, nu, r, u, S_chol, inplace=False):
     nu += 1
 
@@ -158,7 +158,7 @@ class MultivariateNormalDistribution(object):
         return _log_pairwise_marginals(data, params.nu, params.r, params.u, params.S_chol)
 
 
-@numba.jit(nopython=True)
+@numba.jit(cache=True, nopython=True)
 def _log_pairwise_marginals(data, nu, r, u, S_chol):
     N = data.shape[0]
 
@@ -175,7 +175,7 @@ def _log_pairwise_marginals(data, nu, r, u, S_chol):
     return log_p
 
 
-@numba.jit(nopython=True)
+@numba.jit(cache=True, nopython=True)
 def _log_predictive_likelihood_bulk(data, nu, r, u, S_chol):
     N = data.shape[0]
 
@@ -187,7 +187,7 @@ def _log_predictive_likelihood_bulk(data, nu, r, u, S_chol):
     return result
 
 
-@numba.jit(nopython=True)
+@numba.jit(cache=True, nopython=True)
 def _log_predictive_likelihood(data_point, nu, r, u, S_chol):
     D = len(data_point)
 
@@ -196,7 +196,7 @@ def _log_predictive_likelihood(data_point, nu, r, u, S_chol):
     return _log_niw_marginal(D, 1, nu_new, r_new, S_chol_new, nu, r, S_chol)
 
 
-@numba.jit(nopython=True)
+@numba.jit(cache=True, nopython=True)
 def _log_niw_marginal(D, N, nu_new, r_new, S_chol_new, nu_old, r_old, S_chol_old):
     d = np.arange(1, D + 1)
 
