@@ -139,7 +139,7 @@ class SMCSampler(object):
 
         self.verbose = verbose
 
-    def resample_if_necessary(self, swarm, conditional_particle=None):
+    def resample_if_necessary(self, kernel, swarm, conditional_particle=None):
         if swarm.relative_ess <= self.resample_threshold:
             new_swarm = ParticleSwarm()
 
@@ -158,7 +158,7 @@ class SMCSampler(object):
 
             for particle, multiplicity in zip(swarm.particles, multiplicities):
                 for _ in range(multiplicity):
-                    new_swarm.add_particle(log_uniform_weight, particle.copy())
+                    new_swarm.add_particle(log_uniform_weight, kernel.copy_particle(particle))
 
         else:
             new_swarm = swarm
@@ -176,7 +176,7 @@ class SMCSampler(object):
             collapse = True
 
             for p in particles:
-                if len(p.block_params_) > 1:
+                if len(p.block_params) > 1:
                     collapse = False
 
                     break
@@ -192,7 +192,7 @@ class IndependentSMCSampler(SMCSampler):
         swarm = ParticleSwarm()
 
         for _ in range(self.num_particles):
-            swarm.add_particle(0, init_particle.copy())
+            swarm.add_particle(0, kernel.copy_particle(init_particle))
 
         for data_point in data[1:]:
             new_swarm = ParticleSwarm()
@@ -202,7 +202,7 @@ class IndependentSMCSampler(SMCSampler):
 
                 new_swarm.add_particle(parent_log_W + particle.log_w, particle)
 
-            swarm = self.resample_if_necessary(swarm)
+            swarm = self.resample_if_necessary(kernel, swarm)
 
             if self._check_collapse(kernel, swarm.particles):
                 return {kernel.constrained_path[-1]: 0}
@@ -220,7 +220,7 @@ class ParticleGibbsSampler(SMCSampler):
         swarm = ParticleSwarm()
 
         for _ in range(self.num_particles - 1):
-            swarm.add_particle(0, init_particle.copy())
+            swarm.add_particle(0, kernel.copy_particle(init_particle))
 
         swarm.add_particle(0, constrained_path[0])
 
@@ -236,7 +236,7 @@ class ParticleGibbsSampler(SMCSampler):
 
                 new_swarm.add_particle(parent_log_W + particle.log_w, particle)
 
-            swarm = self.resample_if_necessary(new_swarm, conditional_particle=constrained_particle)
+            swarm = self.resample_if_necessary(kernel, new_swarm, conditional_particle=constrained_particle)
 
             if self._check_collapse(kernel, swarm.particles):
                 return {kernel.constrained_path[-1]: 0}
