@@ -46,7 +46,7 @@ class AbstractSplitMergKernel(object):
     def copy_particle(self, particle):
         return SplitMergeParticle(
             particle.block_idx,
-            particle.block_params,
+            tuple([x.copy() for x in particle.block_params]),
             particle.generation,
             particle.log_w,
             particle.parent_particle
@@ -259,7 +259,7 @@ class AnnealedSplitMergeKernel(AbstractSplitMergKernel):
     def copy_particle(self, particle):
         return AnnealedSplitMergeParticle(
             particle.block_idx,
-            particle.block_params,
+            tuple([x.copy() for x in particle.block_params]),
             particle.generation,
             particle.log_annealing_correction,
             particle.log_w,
