@@ -32,6 +32,7 @@ class MultivariateNormalPriors(object):
 
 
 class MultivariateNormalParameters(object):
+    __slots__ = ('nu', 'r', 'u', 'S_chol', 'N')
 
     def __init__(self, nu, r, u, S_chol, N):
         self.nu = nu
@@ -43,10 +44,6 @@ class MultivariateNormalParameters(object):
         self.S_chol = S_chol
 
         self.N = N
-
-    @property
-    def log_det_S(self):
-        return cholesky_log_det(self.S_chol)
 
     @property
     def S(self):
