@@ -179,11 +179,11 @@ class SequentiallyAllocatedMergeSplitSampler(object):
 
         self.kernel.setup(anchors, clustering, data, sigma)
 
-        is_merge = clustering[anchors[0]] != clustering[anchors[1]]
+        propose_merge = clustering[anchors[0]] != clustering[anchors[1]]
 
         merge_particle = get_constrained_path(np.zeros(len(sigma)), data[sigma], self.kernel)[-1]
 
-        if is_merge:
+        if propose_merge:
             split_particle = get_constrained_path(clustering[sigma], data[sigma], self.kernel)[-1]
 
         else:
@@ -195,12 +195,12 @@ class SequentiallyAllocatedMergeSplitSampler(object):
 
         split_mh_factor = get_log_normalisation(split_particle)
 
-        log_mh_ratio = int(is_merge) * (merge_mh_factor - split_mh_factor)
+        log_mh_ratio = int(propose_merge) * (merge_mh_factor - split_mh_factor)
 
         u = np.random.random()
 
         if log_mh_ratio >= np.log(u):
-            if is_merge:
+            if propose_merge:
                 restricted_clustering = np.zeros(len(sigma))
 
             else:
