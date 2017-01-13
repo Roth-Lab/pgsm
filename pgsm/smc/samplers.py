@@ -325,7 +325,4 @@ class ImplicitParticleGibbsSampler(SMCSampler):
             if self._check_collapse(kernel, swarm.particles):
                 return {kernel.constrained_path[-1]: 0}
 
-            assert constrained_particle in swarm.particles
-            assert swarm.num_particles == self.num_particles
-
         return swarm.to_dict()
