@@ -138,6 +138,15 @@ class AbstractSplitMergKernel(object):
 
         return block_params
 
+    def _get_generation(self, parent_particle):
+        if parent_particle is None:
+            generation = 1
+
+        else:
+            generation = parent_particle.generation + 1
+
+        return generation
+
     def get_log_q(self, data_point, parent_particle):
         '''
         Get the unnormalized proposal
@@ -175,13 +184,9 @@ class UniformSplitMergeKernel(AbstractSplitMergKernel):
     def _create_particle(self, block_idx, block_params, data_point, log_q, log_q_norm, parent_particle):
         # Initial particle
         if parent_particle is None:
-            generation = 1
-
             log_w = self.log_target_density(block_params) - log_q_norm
 
         else:
-            generation = parent_particle.generation + 1
-
             # Ratio of target densities
             log_w = self.log_target_density(block_params) - self.log_target_density(parent_particle.block_params)
 
@@ -191,7 +196,7 @@ class UniformSplitMergeKernel(AbstractSplitMergKernel):
         return SplitMergeParticle(
             block_idx=block_idx,
             block_params=tuple(block_params),
-            generation=generation,
+            generation=self._get_generation(parent_particle),
             log_w=log_w,
             parent_particle=parent_particle
         )
@@ -199,7 +204,7 @@ class UniformSplitMergeKernel(AbstractSplitMergKernel):
 
 class FullyAdaptedSplitMergeKernel(AbstractSplitMergKernel):
     '''
-    Propose next with probability proportional to target density.
+    Propose next state with probability proportional to target density.
     '''
 
     def get_log_q(self, data_point, parent_particle):
@@ -223,37 +228,27 @@ class FullyAdaptedSplitMergeKernel(AbstractSplitMergKernel):
 
             num_blocks = len(block_params)
 
-            log_q[block_idx] = self.partition_prior.log_tau_1_diff(self.num_outside_blocks + num_blocks + 1)
+            log_q[block_idx] = self.partition_prior.log_tau_1_diff(self.num_outside_blocks + num_blocks)
 
-            log_q[block_idx] += self.partition_prior.log_tau_2_diff(1)
+            log_q[block_idx] += self.partition_prior.log_tau_2_diff(params.N)
 
             log_q[block_idx] += self.dist.log_predictive_likelihood(data_point, params)
 
         return log_q
 
     def _create_particle(self, block_idx, block_params, data_point, log_q, log_q_norm, parent_particle):
-        if parent_particle is None:
-            generation = 1
-
-            log_w = self.log_target_density(block_params)
-
-        else:
-            generation = parent_particle.generation + 1
-
-            log_w = log_q_norm
-
         return SplitMergeParticle(
             block_idx=block_idx,
             block_params=tuple(block_params),
-            generation=generation,
-            log_w=log_w,
+            generation=self._get_generation(parent_particle),
+            log_w=log_q_norm,
             parent_particle=parent_particle
         )
 
 
 class AnnealedSplitMergeKernel(AbstractSplitMergKernel):
     '''
-    Propose new states uniformly until all anchors are added then use fully adapted proposal.
+    Propose next state uniformly until all anchors are added then use fully adapted proposal.
     '''
 
     def copy_particle(self, particle):
@@ -296,17 +291,7 @@ class AnnealedSplitMergeKernel(AbstractSplitMergKernel):
         return log_q
 
     def _create_particle(self, block_idx, block_params, data_point, log_q, log_q_norm, parent_particle):
-        if parent_particle is None:
-            generation = 1
-
-        else:
-            generation = parent_particle.generation + 1
-
-        if parent_particle is None:
-            log_w = 0
-
-        else:
-            log_w = log_q_norm
+        generation = self._get_generation(parent_particle)
 
         if generation < self.num_anchors:
             log_annealing_correction = None
@@ -330,6 +315,6 @@ class AnnealedSplitMergeKernel(AbstractSplitMergKernel):
             block_params=tuple(block_params),
             generation=generation,
             log_annealing_correction=log_annealing_correction,
-            log_w=log_w,
+            log_w=log_q_norm,
             parent_particle=parent_particle
         )
