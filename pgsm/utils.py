@@ -55,7 +55,7 @@ def mean_log_prediction(clustering, cluster_prior, data, dist, held_out):
     for z, w in log_cluster_prior.items():
         log_p[:, z] = w + dist.log_predictive_likelihood_bulk(held_out, block_params[z])
 
-    return np.sum(log_sum_exp(log_p, axis=1)) / len(held_out)
+    return np.sum(log_sum_exp(log_p, axis=1))
 
 
 def relabel_clustering(clustering):
