@@ -71,8 +71,8 @@ class ParticleGibbsSplitMergeSampler(object):
 
         return clustering
 
-    def setup(self, data):
-        self.anchor_proposal.setup(data, self.dist)
+    def setup(self, clustering, data):
+        self.anchor_proposal.update(clustering, data, self.kernel.dist, self.kernel.partition_prior)
 
     def _get_updated_clustering(self, clustering, particle, sigma):
         restricted_clustering = get_cluster_labels(particle)
