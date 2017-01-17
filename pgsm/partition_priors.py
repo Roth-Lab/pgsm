@@ -37,7 +37,11 @@ class DirichletProcessPartitionPrior(PartitionPrior):
         return math.log(self.alpha)
 
     def log_tau_2_diff(self, x):
-        return math.log(x)
+        if x == 0:
+            return 0
+
+        else:
+            return math.log(x)
 
 
 class FiniteDirichletPartitionPrior(PartitionPrior):
