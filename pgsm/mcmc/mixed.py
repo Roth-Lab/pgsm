@@ -26,8 +26,3 @@ class MixedSampler(object):
             clustering = self.split_merge_sampler.sample(clustering, data, num_iters=1)
 
         return clustering
-
-    def setup(self, data):
-        self.gibbs_sampler.setup(data)
-
-        self.split_merge_sampler.setup(data)

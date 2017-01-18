@@ -7,7 +7,7 @@ from __future__ import division
 
 from pgsm.math_utils import discrete_rvs
 from pgsm.particle_utils import get_cluster_labels
-from pgsm.utils import setup_split_merge, relabel_clustering
+from pgsm.utils import relabel_clustering
 
 import pgsm
 
@@ -17,51 +17,57 @@ class ParticleGibbsSplitMergeSampler(object):
     @classmethod
     def create_from_dist(
             cls,
-            anchor_proposal,
             dist,
             partition_prior,
             num_anchors=2,
             num_particles=20,
             resample_threshold=0.5,
+            use_informed_proposal=False,
             use_annealed=True):
 
         if use_annealed:
-            kernel = pgsm.smc.kernels.AnnealedSplitMergeKernel(dist, partition_prior)
+            smc_kernel = pgsm.smc.kernels.AnnealedSplitMergeKernel(dist, partition_prior)
 
         else:
-            kernel = pgsm.smc.kernels.FullyAdaptedSplitMergeKernel(dist, partition_prior)
+            smc_kernel = pgsm.smc.kernels.FullyAdaptedSplitMergeKernel(dist, partition_prior)
+
+        if use_informed_proposal:
+            raise Exception
+
+        else:
+            split_merge_setup_kernel = pgsm.mcmc.split_merge_setup.UniformSplitMergeSetupKernel()
 
         smc_sampler = pgsm.smc.samplers.ImplicitParticleGibbsSampler(
             num_particles,
             resample_threshold=resample_threshold,
         )
 
-        return cls(anchor_proposal, kernel, smc_sampler, num_anchors=num_anchors)
+        return cls(smc_kernel, smc_sampler, split_merge_setup_kernel, num_anchors=num_anchors)
 
-    def __init__(self, anchor_proposal, kernel, smc_sampler, num_anchors=None):
-        self.anchor_proposal = anchor_proposal
-
-        self.kernel = kernel
+    def __init__(self, smc_kernel, smc_sampler, split_merge_setup_kernel, num_anchors=None):
+        self.smc_kernel = smc_kernel
 
         self.smc_sampler = smc_sampler
 
         self.num_anchors = num_anchors
 
+        self.split_merge_setup_kernel = split_merge_setup_kernel
+
     @property
     def dist(self):
-        return self.kernel.dist
+        return self.smc_kernel.dist
 
     @property
     def partition_prior(self):
-        return self.kernel.partition_prior
+        return self.smc_kernel.partition_prior
 
     def sample(self, clustering, data, num_iters=1):
         for _ in range(num_iters):
             anchors, sigma = self._setup_split_merge(clustering)
 
-            self.kernel.setup(anchors, clustering, data, sigma)
+            self.smc_kernel.setup(anchors, clustering, data, sigma)
 
-            particles_weights = self.smc_sampler.sample(data[sigma], self.kernel)
+            particles_weights = self.smc_sampler.sample(data[sigma], self.smc_kernel)
 
             sampled_particle = self._sample_particle(particles_weights)
 
@@ -72,7 +78,7 @@ class ParticleGibbsSplitMergeSampler(object):
         return clustering
 
     def setup(self, clustering, data):
-        self.anchor_proposal.update(clustering, data, self.kernel.dist, self.kernel.partition_prior)
+        self.anchor_proposal.update(clustering, data, self.smc_kernel.dist, self.smc_kernel.partition_prior)
 
     def _get_updated_clustering(self, clustering, particle, sigma):
         restricted_clustering = get_cluster_labels(particle)
@@ -101,4 +107,4 @@ class ParticleGibbsSplitMergeSampler(object):
         else:
             num_anchors = self.num_anchors
 
-        return setup_split_merge(self.anchor_proposal, clustering, num_anchors)
+        return self.split_merge_setup_kernel.setup_split_merge(clustering, num_anchors)

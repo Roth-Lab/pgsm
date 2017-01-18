@@ -10,18 +10,18 @@ import numpy as np
 from pgsm.math_utils import discrete_rvs, log_normalize
 # from pgsm.smc.kernels import SplitMergeParticle
 # from pgsm.smc.samplers import ParticleSwarm
-from pgsm.utils import relabel_clustering, setup_split_merge
+from pgsm.utils import relabel_clustering
 # from pgsm.particle_utils import get_constrained_path, get_log_normalisation, get_clustering, get_cluster_labels
 
 
 class SequentiallyAllocatedMergeSplitSampler(object):
 
-    def __init__(self, anchor_proposal, dist, partition_prior):
-        self.anchor_proposal = anchor_proposal
-
+    def __init__(self, dist, partition_prior, split_merge_setup_kernel):
         self.dist = dist
 
         self.partition_prior = partition_prior
+
+        self.split_merge_setup_kernel = split_merge_setup_kernel
 
     def sample(self, clustering, data, num_iters=1):
         for _ in range(num_iters):
@@ -29,14 +29,8 @@ class SequentiallyAllocatedMergeSplitSampler(object):
 
         return clustering
 
-    def setup(self, clustering, data):
-        pass
-#         self.anchor_proposal.setup(data, self.dist)
-
     def _sample(self, clustering, data):
-        self.anchor_proposal.update(clustering, data, self.dist, self.partition_prior)
-
-        anchors, sigma = setup_split_merge(self.anchor_proposal, clustering, 2)
+        anchors, sigma = self.split_merge_setup_kernel.setup_split_merge(clustering, 2)
 
         num_anchor_blocks = len(np.unique([clustering[a] for a in anchors]))
 
