@@ -7,7 +7,7 @@ from __future__ import division
 
 import numpy as np
 
-from pgsm.math_utils import discrete_rvs, exp_normalize
+from pgsm.math_utils import discrete_rvs, exp_normalize, log_sum_exp
 from pgsm.utils import relabel_clustering
 
 
@@ -78,10 +78,13 @@ class GibbsSplitMergeSetupKernel(SplitMergeSetupKernel):
         self.max_clusters_seen = 0
 
     def _propose_anchors(self, num_achors):
-        anchor_1 = np.random.randint(0, len(self.data_to_clusters))
+        anchor_1 = np.random.randint(0, self.num_data_points)
+
+        if anchor_1 not in self.data_to_clusters:
+            self._set_data_to_clusters(anchor_1)
 
         if len(self.data_to_clusters[anchor_1]) == 0:
-            return np.random.choice(np.arange(len(self.data_to_clusters)), replace=False, size=2)
+            return np.random.choice(np.arange(self.num_data_points), replace=False, size=2)
 
         cluster = np.random.choice(self.data_to_clusters[anchor_1])
 
@@ -107,66 +110,58 @@ class GibbsSplitMergeSetupKernel(SplitMergeSetupKernel):
 
         print 'Updating anchor proposal distribution'
 
+        self.cluster_params = {}
+
         self.clusters_to_data = {}
 
         self.data_to_clusters = {}
 
-        clustering = relabel_clustering(clustering)
+        self.clustering = relabel_clustering(clustering)
 
-        clusters = np.unique(clustering)
-
-        idx = np.arange(len(self.data))
-
-        np.random.shuffle(idx)
-
-        params = []
-
-        for c in clusters:
+        for c in np.unique(clustering):
             cluster_data = self.data[clustering == c]
 
-            cluster_params = self.dist.create_params_from_data(cluster_data)
-
-            params.append(cluster_params)
+            self.cluster_params[c] = self.dist.create_params_from_data(cluster_data)
 
             self.clusters_to_data[c] = np.where(clustering == c)[0].flatten()
 
-        log_p = np.zeros(num_clusters)
+    def _set_data_to_clusters(self, data_idx):
+        data_point = self.data[data_idx]
 
-        for i in idx:
-            data_point = self.data[i]
+        log_p = np.zeros(len(self.cluster_params))
 
-            self.data_to_clusters[i] = []
+        for c, block_params in self.cluster_params.items():
+            if self.clustering[data_idx] == c:
+                block_params.decrement(data_point)
 
-            for c, block_params in enumerate(params):
-                if clustering[i] == c:
-                    block_params.decrement(data_point)
+            if block_params.N == 0:
+                log_p[c] = float('-inf')
 
-                if params[c].N == 0:
-                    log_p[c] = float('-inf')
+            else:
+                log_p[c] = self.partition_prior.log_tau_2(block_params.N)
 
-                else:
-                    log_p[c] = self.partition_prior.log_tau_2(params[c].N)
+                log_p[c] += self.dist.log_predictive_likelihood(data_point, block_params)
 
-                    log_p[c] += self.dist.log_predictive_likelihood(data_point, block_params)
+            if self.clustering[data_idx] == c:
+                block_params.increment(data_point)
 
-                if clustering[i] == c:
-                    params[c].increment(data_point)
+        p, _ = exp_normalize(log_p)
 
-            p, _ = exp_normalize(log_p)
+        self.data_to_clusters[data_idx] = []
 
-            for c, _ in enumerate(params):
-                if p[c] >= self.threshold:
-                    self.data_to_clusters[i].append(c)
+        for c in self.cluster_params:
+            cluster_idx = self.cluster_params.keys().index(c)
+
+            if p[cluster_idx] >= self.threshold:
+                self.data_to_clusters[data_idx].append(c)
 
 
 class ClusterInformedSplitMergeSetupKernel(SplitMergeSetupKernel):
 
-    def __init__(self, data, dist, partition_prior, threshold=0.01):
+    def __init__(self, data, dist, partition_prior, threshold=0.01, use_prior_weight=False):
         SplitMergeSetupKernel.__init__(self, data, dist, partition_prior)
 
-        self.clusters_to_data = {}
-
-        self.data_to_clusters = {}
+        self.use_prior_weight = use_prior_weight
 
         self.max_clusters_seen = 0
 
@@ -175,11 +170,7 @@ class ClusterInformedSplitMergeSetupKernel(SplitMergeSetupKernel):
 
         cluster_1 = self.data_to_clusters[anchor_1]
 
-        log_p = self.log_p[cluster_1]
-
-        p, _ = exp_normalize(log_p)
-
-        cluster_2 = discrete_rvs(p)
+        cluster_2 = discrete_rvs(self.cluster_probs[cluster_1])
 
         cluster_members = set(self.clusters_to_data[cluster_2])
 
@@ -191,7 +182,7 @@ class ClusterInformedSplitMergeSetupKernel(SplitMergeSetupKernel):
         else:
             anchor_2 = np.random.choice(list(cluster_members))
 
-        return int(anchor_1), int(anchor_2)
+        return anchor_1, anchor_2
 
     def _update(self, clustering):
         num_clusters = len(np.unique(clustering))
@@ -208,11 +199,11 @@ class ClusterInformedSplitMergeSetupKernel(SplitMergeSetupKernel):
 
         clusters = np.unique(clustering)
 
+        self.cluster_probs = np.zeros((num_clusters, num_clusters))
+
         self.clusters_to_data = {}
 
         self.data_to_clusters = {}
-
-        self.log_p = np.zeros((num_clusters, num_clusters))
 
         margs = {}
 
@@ -223,12 +214,17 @@ class ClusterInformedSplitMergeSetupKernel(SplitMergeSetupKernel):
 
             margs[c] = self.dist.log_marginal_likelihood(cluster_params)
 
+            if self.use_prior_weight:
+                margs[c] += self.partition_prior.log_tau_2(cluster_params.N)
+
             self.clusters_to_data[c] = np.where(clustering == c)[0].flatten()
 
             for i in self.clusters_to_data[c]:
                 self.data_to_clusters[i] = c
 
         for c_i in clusters:
+            log_p = np.ones(num_clusters) * float('-inf')
+
             for c_j in clusters:
                 if c_i == c_j:
                     continue
@@ -237,7 +233,16 @@ class ClusterInformedSplitMergeSetupKernel(SplitMergeSetupKernel):
 
                 merged_params = self.dist.create_params_from_data(merged_data)
 
-                self.log_p[c_i, c_j] = self.dist.log_marginal_likelihood(merged_params) - (margs[c_i] + margs[c_j])
+                merge_marg = self.dist.log_marginal_likelihood(merged_params)
+
+                if self.use_prior_weight:
+                    merge_marg += self.partition_prior.log_tau_2(merged_params.N)
+
+                log_p[c_j] = merge_marg - (margs[c_i] + margs[c_j])
+
+            log_p[c_i] = np.log(2) + log_sum_exp(log_p)
+
+            self.cluster_probs[c_i], _ = exp_normalize(log_p)
 
 
 class PointInformedSplitMergeSetupKernel(SplitMergeSetupKernel):
@@ -245,12 +250,19 @@ class PointInformedSplitMergeSetupKernel(SplitMergeSetupKernel):
     def __init__(self, data, dist, partition_prior):
         SplitMergeSetupKernel.__init__(self, data, dist, partition_prior)
 
-        self.log_p = None
+        self.data_to_clusters = {}
+
+        params = self.dist.create_params()
+
+        self.log_seperate_margs = self.dist.log_predictive_likelihood_bulk(self.data, params)
 
     def _propose_anchors(self, num_anchors):
         anchor_1 = np.random.randint(0, self.num_data_points)
 
-        log_p_anchor = self.log_p[anchor_1].copy()
+        if anchor_1 not in self.data_to_clusters:
+            self._set_data_to_clusters(anchor_1)
+
+        log_p_anchor = self.data_to_clusters[anchor_1].copy()
 
         do_merge = (np.random.random() <= 0.5)
 
@@ -289,108 +301,15 @@ class PointInformedSplitMergeSetupKernel(SplitMergeSetupKernel):
         return anchor_1, anchor_2
 
     def _update(self, clustering):
-        if self.log_p is not None:
-            return
+        pass
 
-        self.log_p = np.zeros((self.num_data_points, self.num_data_points))
+    def _set_data_to_clusters(self, i):
+        self.data_to_clusters[i] = np.zeros(self.num_data_points)
 
-        params = self.dist.create_params()
+        params = self.dist.create_params_from_data(self.data[i])
 
-        log_seperate_margs = self.dist.log_predictive_likelihood_bulk(self.data, params)
+        log_pairwise_margs = self.dist.log_predictive_likelihood_bulk(self.data, params)
 
-        log_pairwise_margs = self.dist.log_pairwise_marginals(self.data, params)
-
-        for i in range(self.num_data_points):
-            for j in range(i):
-                self.log_p[i, j] = log_pairwise_margs[i, j] - (log_seperate_margs[i] + log_seperate_margs[j])
-
-                self.log_p[j, i] = self.log_p[i, j]
-
-
-class AdaptiveInformedSplitMergeSetupKernel(SplitMergeSetupKernel):
-
-    def __init__(self, data, dist, partition_prior):
-        SplitMergeSetupKernel.__init__(self, data, dist, partition_prior)
-
-        self.max_clusters_seen = 0
-
-    def _propose_anchors(self, num_anchors):
-        if num_anchors != 2:
-            raise Exception('Informed anchor proposal only works for 2 anchors.')
-
-        cluster_1 = np.random.randint(0, len(self.clusters_to_data))
-
-        is_singleton = (len(self.clusters_to_data[cluster_1]) == 1)
-
-        not_single_cluster = (len(self.clusters_to_data) > 1)
-
-        do_merge = (np.random.random() < 0.5)
-
-        # Merge
-        if is_singleton or (not_single_cluster and do_merge):
-            anchor_1 = np.random.choice(self.clusters_to_data[cluster_1])
-
-            p, _ = exp_normalize(self.log_p_merge[cluster_1])
-
-            cluster_2 = discrete_rvs(p)
-
-            anchor_2 = np.random.choice(self.clusters_to_data[cluster_2])
-
-        # Split
-        else:
-            anchor_1, anchor_2 = np.random.choice(self.clusters_to_data[cluster_1], replace=False, size=2)
-
-        return anchor_1, anchor_2
-
-    def _update(self, clustering):
-        num_clusters = len(np.unique(clustering))
-
-        if num_clusters <= self.max_clusters_seen:
-            return
-
-        else:
-            self.max_clusters_seen = num_clusters
-
-        clustering = relabel_clustering(clustering)
-
-        clusters = np.unique(clustering)
-
-        print 'Updating proposal'
-
-        self.clusters_to_data = {}
-
-        self.data_to_clusters = {}
-
-        for c in clusters:
-            self.clusters_to_data[c] = np.where(clustering == c)[0].flatten()
-
-            for i in self.clusters_to_data[c]:
-                self.data_to_clusters[i] = c
-
-        self.log_p_merge = np.zeros((num_clusters, num_clusters))
-
-        for cluster_1 in clusters:
-            cluster_1_params = self.dist.create_params_from_data(self.data[clustering == cluster_1])
-
-            cluster_1_log_marg = self.partition_prior.log_tau_2(cluster_1_params.N) + \
-                self.dist.log_marginal_likelihood(cluster_1_params)
-
-            for cluster_2 in clusters:
-                if cluster_1 == cluster_2:
-                    self.log_p_merge[cluster_1, cluster_2] = float('-inf')
-
-                else:
-                    cluster_2_params = self.dist.create_params_from_data(self.data[clustering == cluster_2])
-
-                    cluster_2_log_marg = self.partition_prior.log_tau_2(cluster_2_params.N) + \
-                        self.dist.log_marginal_likelihood(cluster_2_params)
-
-                    merged_data = self.data[(clustering == cluster_1) | (clustering == cluster_2)]
-
-                    merged_params = self.dist.create_params_from_data(merged_data)
-
-                    merged_log_marg = self.partition_prior.log_tau_2(merged_params.N) + \
-                        self.dist.log_marginal_likelihood(merged_params)
-
-                    self.log_p_merge[cluster_1, cluster_2] = merged_log_marg - \
-                        (cluster_1_log_marg + cluster_2_log_marg)
+        for j in range(self.num_data_points):
+            self.data_to_clusters[i][j] = log_pairwise_margs[j] - \
+                (self.log_seperate_margs[i] + self.log_seperate_margs[j])
