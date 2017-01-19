@@ -112,7 +112,7 @@ def load_data_from_file(file_name, error_rate=1e-3, grid_size=1000, tumour_conte
 
         # Consider all possible mutational genotypes consistent with mutation befor CN change
         for x in range(1, major_cn + 1):
-            cn.append((cn_n, cn_n, x))
+            cn.append((cn_n, cn_n, total_cn))
 
             mu.append((error_rate, error_rate, min(1 - error_rate, x / total_cn)))
 
@@ -128,7 +128,7 @@ def load_data_from_file(file_name, error_rate=1e-3, grid_size=1000, tumour_conte
 
             log_pi.append(0)
 
-        assert len(cn) == len(set(cn))
+            assert len(set(cn)) == 2
 
         cn = np.array(cn, dtype=int)
 
