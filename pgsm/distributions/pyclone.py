@@ -46,6 +46,8 @@ class PyCloneDistribution(object):
         return PycloneParameters(uniform_log_prior, 0)
 
     def create_params_from_data(self, X):
+        X = np.atleast_2d(X)
+
         return PycloneParameters(np.sum(X, axis=0), X.shape[0])
 
     def log_marginal_likelihood(self, params):
