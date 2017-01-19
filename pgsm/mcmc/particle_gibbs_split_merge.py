@@ -22,7 +22,7 @@ class ParticleGibbsSplitMergeSampler(object):
             num_anchors=2,
             num_particles=20,
             resample_threshold=0.5,
-            use_informed_proposal=False,
+            setup_kernel=None,
             use_annealed=True):
 
         if use_annealed:
@@ -31,18 +31,15 @@ class ParticleGibbsSplitMergeSampler(object):
         else:
             smc_kernel = pgsm.smc.kernels.FullyAdaptedSplitMergeKernel(dist, partition_prior)
 
-        if use_informed_proposal:
-            raise Exception
-
-        else:
-            split_merge_setup_kernel = pgsm.mcmc.split_merge_setup.UniformSplitMergeSetupKernel()
+        if setup_kernel is None:
+            setup_kernel = pgsm.mcmc.split_merge_setup.UniformSplitMergeSetupKernel()
 
         smc_sampler = pgsm.smc.samplers.ImplicitParticleGibbsSampler(
             num_particles,
             resample_threshold=resample_threshold,
         )
 
-        return cls(smc_kernel, smc_sampler, split_merge_setup_kernel, num_anchors=num_anchors)
+        return cls(smc_kernel, smc_sampler, setup_kernel, num_anchors=num_anchors)
 
     def __init__(self, smc_kernel, smc_sampler, split_merge_setup_kernel, num_anchors=None):
         self.smc_kernel = smc_kernel
