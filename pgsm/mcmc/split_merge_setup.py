@@ -158,7 +158,7 @@ class GibbsSplitMergeSetupKernel(SplitMergeSetupKernel):
 
 class ClusterInformedSplitMergeSetupKernel(SplitMergeSetupKernel):
 
-    def __init__(self, data, dist, partition_prior, threshold=0.01, use_prior_weight=False):
+    def __init__(self, data, dist, partition_prior, use_prior_weight=False):
         SplitMergeSetupKernel.__init__(self, data, dist, partition_prior)
 
         self.use_prior_weight = use_prior_weight
