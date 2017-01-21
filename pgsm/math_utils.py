@@ -86,10 +86,12 @@ def cholesky_log_det(X):
     return 2 * np.sum(np.log(np.diag(X)))
 
 
+@numba.jit(cache=True, nopython=True)
 def log_factorial(x):
     return log_gamma(x + 1)
 
 
+@numba.jit(cache=True, nopython=True)
 def log_binomial_coefficient(n, x):
     return log_factorial(n) - log_factorial(x) - log_factorial(n - x)
 
