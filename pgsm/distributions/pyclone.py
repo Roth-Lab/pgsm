@@ -9,30 +9,30 @@ import numba
 import numpy as np
 import pandas as pd
 
-from pgsm.math_utils import log_sum_exp, log_normalize
+from pgsm.math_utils import log_binomial_coefficient, log_normalize, log_sum_exp
 
 
 class PycloneParameters(object):
 
-    def __init__(self, psi, N):
-        self._psi = psi
+    def __init__(self, log_pdf_grid, N):
+        self.log_pdf_grid = log_pdf_grid
 
         self.N = N
 
     @property
-    def psi(self):
-        return log_normalize(self._psi)
+    def normalized_log_pdf_grid(self):
+        return log_normalize(self.log_pdf_grid)
 
     def copy(self):
-        return PycloneParameters(self.psi.copy(), self.N)
+        return PycloneParameters(self.log_pdf_grid.copy(), self.N)
 
     def decrement(self, x):
-        self._psi -= x
+        self.log_pdf_grid -= x
 
         self.N -= 1
 
     def increment(self, x):
-        self._psi += x
+        self.log_pdf_grid += x
 
         self.N += 1
 
@@ -53,10 +53,10 @@ class PyCloneDistribution(object):
         return PycloneParameters(np.sum(X, axis=0), X.shape[0])
 
     def log_marginal_likelihood(self, params):
-        return log_sum_exp(params._psi)
+        return log_sum_exp(params.log_pdf_grid)
 
     def log_predictive_likelihood(self, data_point, params):
-        return log_sum_exp(data_point + params.psi)
+        return log_sum_exp(data_point + params.normalized_log_pdf_grid)
 
     def log_predictive_likelihood_bulk(self, data, params):
         log_p = np.zeros(len(data))
@@ -83,11 +83,13 @@ class PyCloneDistribution(object):
         return log_p
 
 
-def load_data_from_file(file_name, error_rate=1e-3, grid_size=1000, tumour_content=1.0):
+def load_data_from_file(file_name, error_rate=1e-3, grid_size=1000, perfect_prior=False, tumour_content=1.0):
     '''
     Given a PyClone input tsv formatted file, load the discretized grid of likelihoods.
 
-    See https://bitbucket.org/aroth85/pyclone/wiki/Usage for information about the input file format.
+    See https://bitbucket.org/aroth85/pyclone/wiki/Usage for information about the input file format. For debugging
+    purposes, this file can also include information about the mutational genotype for use with the perfrect_prior
+    argument.
     '''
     data = []
 
@@ -104,31 +106,45 @@ def load_data_from_file(file_name, error_rate=1e-3, grid_size=1000, tumour_conte
 
         total_cn = row['major_cn'] + row['minor_cn']
 
-        cn = []
+        # Use the true mutational genotype information
+        if perfect_prior:
+            cn = [
+                [len(row['g_n']), len(row['g_r']), len(row['g_v'])]
+            ]
 
-        mu = []
+            mu = [
+                [error_rate, error_rate, min(1 - error_rate, row['g_v'].count('B') / len(row['g_v']))]
+            ]
 
-        log_pi = []
+            log_pi = [0, ]
 
-        # Consider all possible mutational genotypes consistent with mutation befor CN change
-        for x in range(1, major_cn + 1):
-            cn.append((cn_n, cn_n, total_cn))
+        # Elicit mutational genotype prior based on major and minor copy number
+        else:
+            cn = []
 
-            mu.append((error_rate, error_rate, min(1 - error_rate, x / total_cn)))
+            mu = []
 
-            log_pi.append(0)
+            log_pi = []
 
-        # Consider mutational genotype of mutation before CN change if not already added
-        mutation_after_cn = (cn_n, total_cn, total_cn)
+            # Consider all possible mutational genotypes consistent with mutation before CN change
+            for x in range(1, major_cn + 1):
+                cn.append((cn_n, cn_n, total_cn))
 
-        if mutation_after_cn not in cn:
-            cn.append(mutation_after_cn)
+                mu.append((error_rate, error_rate, min(1 - error_rate, x / total_cn)))
 
-            mu.append((error_rate, error_rate, min(1 - error_rate, 1 / total_cn)))
+                log_pi.append(0)
 
-            log_pi.append(0)
+            # Consider mutational genotype of mutation before CN change if not already added
+            mutation_after_cn = (cn_n, total_cn, total_cn)
 
-            assert len(set(cn)) == 2
+            if mutation_after_cn not in cn:
+                cn.append(mutation_after_cn)
+
+                mu.append((error_rate, error_rate, min(1 - error_rate, 1 / total_cn)))
+
+                log_pi.append(0)
+
+                assert len(set(cn)) == 2
 
         cn = np.array(cn, dtype=int)
 
@@ -172,32 +188,37 @@ class DataPoint(object):
 def compute_log_p_sample(data, f, t):
     C = len(data.cn)
 
-    p = np.zeros((C, 3))
-    p[:, 0] = (1 - t)
-    p[:, 1] = t * (1 - f)
-    p[:, 2] = t * f
+    population_prior = np.zeros(3)
+    population_prior[0] = (1 - t)
+    population_prior[1] = t * (1 - f)
+    population_prior[2] = t * f
 
-    e_vaf = np.zeros(C)
-
-    ll = np.zeros(C, dtype=np.float64)
+    ll = np.ones(C, dtype=np.float64) * np.inf * -1
 
     for c in range(C):
+        e_vaf = 0
+
         norm_const = 0
-        for i in range(3):
-            p[c, i] = p[c, i] * data.cn[c, i]
-
-            norm_const += p[c, i]
 
         for i in range(3):
-            p[c, i] = p[c, i] / norm_const
+            e_cn = population_prior[i] * data.cn[c, i]
 
-            e_vaf[c] += p[c, i] * data.mu[c, i]
+            e_vaf += e_cn * data.mu[c, i]
 
-        ll[c] = data.log_pi[c] + binomial_log_likelihood(data.b, data.a, e_vaf[c])
+            norm_const += e_cn
+
+        e_vaf /= norm_const
+
+        ll[c] = data.log_pi[c] + binomial_log_pdf(data.a + data.b, data.b, e_vaf)
 
     return log_sum_exp(ll)
 
 
 @numba.jit(nopython=True)
-def binomial_log_likelihood(a, b, p):
-    return a * np.log(p) + b * np.log(1 - p)
+def binomial_log_likelihood(n, x, p):
+    return x * np.log(p) + (n - x) * np.log(1 - p)
+
+
+@numba.jit(nopython=True)
+def binomial_log_pdf(n, x, p):
+    return log_binomial_coefficient(n, x) + binomial_log_likelihood(n, x, p)
