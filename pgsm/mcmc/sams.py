@@ -8,10 +8,7 @@ from __future__ import division
 import numpy as np
 
 from pgsm.math_utils import discrete_rvs, log_normalize
-# from pgsm.smc.kernels import SplitMergeParticle
-# from pgsm.smc.samplers import ParticleSwarm
 from pgsm.utils import relabel_clustering
-# from pgsm.particle_utils import get_constrained_path, get_log_normalisation, get_clustering, get_cluster_labels
 
 
 class SequentiallyAllocatedMergeSplitSampler(object):
