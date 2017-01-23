@@ -16,19 +16,26 @@ class SplitMergeSetupKernel(object):
     Base class for kernel to setup a split merge move.
     '''
 
-    def __init__(self, data, dist, partition_prior):
+    def __init__(self, data, dist, partition_prior, num_adaptation_iters=float('inf')):
         self.data = data
 
         self.dist = dist
 
         self.partition_prior = partition_prior
 
+        self.num_adaptation_iters = num_adaptation_iters
+
+        self.iter = 0
+
         self.num_data_points = len(data)
 
     def setup_split_merge(self, clustering, num_anchors):
+        self.iter += 1
+
         clustering = np.array(clustering, dtype=np.int)
 
-        self._update(clustering)
+        if self.iter < self.num_adaptation_iters:
+            self._update(clustering)
 
         num_data_points = len(clustering)
 
@@ -70,8 +77,8 @@ class UniformSplitMergeSetupKernel(SplitMergeSetupKernel):
 
 class GibbsSplitMergeSetupKernel(SplitMergeSetupKernel):
 
-    def __init__(self, data, dist, partition_prior, threshold=0.01):
-        SplitMergeSetupKernel.__init__(self, data, dist, partition_prior)
+    def __init__(self, data, dist, partition_prior, num_adaptation_iters=float('inf'), threshold=0.01):
+        SplitMergeSetupKernel.__init__(self, data, dist, partition_prior, num_adaptation_iters=num_adaptation_iters)
 
         self.threshold = threshold
 
@@ -158,8 +165,8 @@ class GibbsSplitMergeSetupKernel(SplitMergeSetupKernel):
 
 class ClusterInformedSplitMergeSetupKernel(SplitMergeSetupKernel):
 
-    def __init__(self, data, dist, partition_prior, use_prior_weight=False):
-        SplitMergeSetupKernel.__init__(self, data, dist, partition_prior)
+    def __init__(self, data, dist, partition_prior, num_adaptation_iters=float('inf'), use_prior_weight=False):
+        SplitMergeSetupKernel.__init__(self, data, dist, partition_prior, num_adaptation_iters=num_adaptation_iters)
 
         self.use_prior_weight = use_prior_weight
 
@@ -240,15 +247,15 @@ class ClusterInformedSplitMergeSetupKernel(SplitMergeSetupKernel):
 
                 log_p[c_j] = merge_marg - (margs[c_i] + margs[c_j])
 
-            log_p[c_i] = np.log(2) + log_sum_exp(log_p)
+            log_p[c_i] = -np.log(len(clusters)) + log_sum_exp(log_p)
 
             self.cluster_probs[c_i], _ = exp_normalize(log_p)
 
 
 class PointInformedSplitMergeSetupKernel(SplitMergeSetupKernel):
 
-    def __init__(self, data, dist, partition_prior):
-        SplitMergeSetupKernel.__init__(self, data, dist, partition_prior)
+    def __init__(self, data, dist, partition_prior, num_adaptation_iters=float('inf')):
+        SplitMergeSetupKernel.__init__(self, data, dist, partition_prior, num_adaptation_iters=num_adaptation_iters)
 
         self.data_to_clusters = {}
 
