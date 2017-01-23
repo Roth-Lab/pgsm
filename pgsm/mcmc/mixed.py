@@ -8,7 +8,7 @@ from pgsm.mcmc.collapsed_gibbs import CollapsedGibbsSampler
 
 class MixedSampler(object):
 
-    def __init__(self, dist, partition_prior, split_merge_sampler, gibbs_per_split_merge=1, **kwargs):
+    def __init__(self, dist, partition_prior, split_merge_sampler, gibbs_per_split_merge=1):
         self.dist = dist
 
         self.partition_prior = partition_prior
