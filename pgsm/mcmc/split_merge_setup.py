@@ -247,7 +247,7 @@ class ClusterInformedSplitMergeSetupKernel(SplitMergeSetupKernel):
 
                 log_p[c_j] = merge_marg - (margs[c_i] + margs[c_j])
 
-            log_p[c_i] = -np.log(len(clusters)) + log_sum_exp(log_p)
+            log_p[c_i] = log_sum_exp(log_p)
 
             self.cluster_probs[c_i], _ = exp_normalize(log_p)
 
