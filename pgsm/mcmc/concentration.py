@@ -32,19 +32,20 @@ class GammaPriorConcentrationSampler(object):
         k = num_clusters
 
         n = num_data_points
+
         eta = stats.beta.rvs(a=old_value + 1, b=n)
 
         shape = (a + k - 1)
 
-        scale = b - np.log(eta)
+        rate = b - np.log(eta)
 
-        x = shape / (n * scale)
+        x = shape / (n * rate)
 
         pi = x / (1 + x)
 
         shape += stats.bernoulli.rvs(pi)
 
-        new_value = stats.gamma.rvs(shape, scale=(1 / scale))
+        new_value = stats.gamma.rvs(shape, scale=(1 / rate))
 
         new_value = max(new_value, 1e-10)  # Catch numerical error
 
