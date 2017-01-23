@@ -9,6 +9,8 @@ from scipy.misc import logsumexp as log_sum_exp
 
 import numpy as np
 
+from pgsm.math_utils import log_normalize
+
 
 def cluster_entropy(clustering):
     _, size = np.unique(clustering, return_counts=True)
@@ -23,37 +25,33 @@ def cluster_entropy(clustering):
 def held_out_log_predicitive(clustering, dist, partition_prior, test_data, train_data):
     clustering = relabel_clustering(clustering)
 
-    block_params = {}
+    block_params = []
 
-    log_cluster_prior = {}
+    log_cluster_prior = []
 
-    block_ids = np.unique(clustering)
+    block_ids = sorted(np.unique(clustering))
+
+    for z in block_ids:
+        params = dist.create_params_from_data(train_data[clustering == z])
+
+        block_params.append(params)
+
+        log_cluster_prior.append(partition_prior.log_tau_2_diff(params.N))
 
     num_blocks = len(block_ids)
 
-    for z in block_ids:
-        block_params[z] = dist.create_params()
+    block_params.append(dist.create_params())
 
-        N_z = np.sum(clustering == z)
+    log_cluster_prior.append(partition_prior.log_tau_1_diff(num_blocks))
 
-        log_cluster_prior[z] = partition_prior.log_tau_2_diff(N_z)
+    log_cluster_prior = np.array(log_cluster_prior)
 
-    block_params[num_blocks] = dist.create_params()
-
-    log_cluster_prior[num_blocks] = partition_prior.log_tau_1_diff(num_blocks)
-
-    weight_norm = log_sum_exp(log_cluster_prior.values())
-
-    for z in log_cluster_prior:
-        log_cluster_prior[z] -= weight_norm
-
-    for x, z in zip(train_data, clustering):
-        block_params[z].increment(x)
+    log_cluster_prior = log_normalize(log_cluster_prior)
 
     log_p = np.zeros((test_data.shape[0], len(log_cluster_prior)))
 
-    for z, w in log_cluster_prior.items():
-        log_p[:, z] = w + dist.log_predictive_likelihood_bulk(test_data, block_params[z])
+    for z, (w, params) in enumerate(zip(log_cluster_prior, block_params)):
+        log_p[:, z] = w + dist.log_predictive_likelihood_bulk(test_data, params)
 
     return np.sum(log_sum_exp(log_p, axis=1))
 
