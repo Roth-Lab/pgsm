@@ -16,17 +16,11 @@ def discrete_rvs(p):
 
 @numba.jit(cache=True, nopython=True)
 def exp_normalize(log_p):
-    if len(log_p) == 1:
-        log_norm = log_p[0]
+    log_norm = log_sum_exp(log_p)
 
-        p = np.zeros(1)
+    p = np.exp(log_p - log_norm)
 
-    else:
-        log_norm = log_sum_exp(log_p)
-
-        p = np.exp(log_p - log_norm)
-
-        p = p / p.sum()
+    p = p / p.sum()
 
     return p, log_norm
 
@@ -39,11 +33,15 @@ def log_sum_exp(log_X):
     Numerically safer than naive method.
     '''
     max_exp = np.max(log_X)
+
     if np.isinf(max_exp):
         return max_exp
+
     total = 0
+
     for x in log_X:
         total += np.exp(x - max_exp)
+
     return np.log(total) + max_exp
 
 
