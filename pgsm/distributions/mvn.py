@@ -107,6 +107,8 @@ class MultivariateNormalDistribution(object):
         )
 
     def create_params_from_data(self, X):
+        X = np.atleast_2d(X)
+
         N = X.shape[0]
 
         nu = self.priors.nu + N
@@ -153,26 +155,6 @@ class MultivariateNormalDistribution(object):
 
     def log_predictive_likelihood_bulk(self, data, params):
         return _log_predictive_likelihood_bulk(data, params.nu, params.r, params.u, params.S_chol)
-
-    def log_pairwise_marginals(self, data, params):
-        return _log_pairwise_marginals(data, params.nu, params.r, params.u, params.S_chol)
-
-
-@numba.jit(cache=True, nopython=True)
-def _log_pairwise_marginals(data, nu, r, u, S_chol):
-    N = data.shape[0]
-
-    log_p = np.zeros((N, N))
-
-    for i in range(N):
-        nu_new, r_new, u_new, S_chol_new = _increment_params(data[i], nu, r, u, S_chol, 1)
-
-        for j in range(i + 1):
-            log_p[i, j] = _log_predictive_likelihood(data[j], nu_new, r_new, u_new, S_chol_new)
-
-            log_p[j, i] = log_p[i, j]
-
-    return log_p
 
 
 @numba.jit(cache=True, nopython=True)
