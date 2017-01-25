@@ -7,11 +7,9 @@ from __future__ import division
 
 import numpy as np
 
-from pgsm.particle_utils import get_constrained_path, get_log_normalisation, get_cluster_labels
+from pgsm.particle_utils import get_log_normalisation, get_cluster_labels
 from pgsm.smc.kernels import FullyAdaptedSplitMergeKernel
 from pgsm.utils import relabel_clustering
-
-from pgsm.smc.kernels import SplitMergeParticle
 
 
 class SequentiallyAllocatedMergeSplitSampler(object):
@@ -66,6 +64,8 @@ class SequentiallyAllocatedMergeSplitSampler(object):
 
         log_ratio = forward_factor - reverse_factor
 
+#         print split_mh_factor, merge_mh_factor, log_ratio
+
         u = np.random.random()
 
         if log_ratio >= np.log(u):
@@ -78,30 +78,56 @@ class SequentiallyAllocatedMergeSplitSampler(object):
         return clustering
 
     def _merge(self, data):
-        clustering = np.zeros(len(data), dtype=np.int)
+        particle = self.kernel.create_particle(
+            0,
+            data[0],
+            None,
+            log_q={0: 0}
+        )
 
-        particle = get_constrained_path(clustering, data, self.kernel)[-1]
+        particle = self.kernel.create_particle(
+            0,
+            data[1],
+            particle,
+            log_q={0: self.kernel.log_target_density([self.dist.create_params_from_data(data[:2]), ])}
+        )
 
-        return clustering, get_log_normalisation(particle)
+        for data_point in data[2:]:
+            particle = self.kernel.propose(data_point, particle)
+
+        clustering = get_cluster_labels(particle)
+
+        log_mh_factor = get_log_normalisation(particle)
+
+        return clustering, log_mh_factor
 
     def _split(self, data, constrained_clustering=None):
+        particle = self.kernel.create_particle(
+            0,
+            data[0],
+            None,
+            log_q={0: self.dist.log_marginal_likelihood(self.dist.create_params_from_data(data[0]))}
+        )
+
+        particle = self.kernel.create_particle(
+            1,
+            data[1],
+            particle,
+            log_q={1: self.dist.log_marginal_likelihood(self.dist.create_params_from_data(data[1]))}
+        )
+
         if constrained_clustering is None:
-            params = []
-
-            params.append(self.dist.create_params_from_data(data[0]))
-
-            particle = SplitMergeParticle(0, params, 1, 0, None)
-
-            params.append(self.dist.create_params_from_data(data[1]))
-
-            particle = SplitMergeParticle(1, params, 2, self.kernel.log_target_density(params), particle)
-
             for data_point in data[2:]:
                 particle = self.kernel.propose(data_point, particle)
 
         else:
-            particle = get_constrained_path(constrained_clustering, data, self.kernel)[-1]
+            constrained_clustering = relabel_clustering(constrained_clustering)
+
+            for block_idx, data_point in zip(constrained_clustering[2:], data[2:]):
+                particle = self.kernel.create_particle(block_idx, data_point, particle)
 
         clustering = get_cluster_labels(particle)
 
-        return clustering, get_log_normalisation(particle)
+        log_mh_factor = get_log_normalisation(particle)
+
+        return clustering, log_mh_factor
