@@ -77,9 +77,9 @@ class CoupledDirichletProcessSplitMerge(object):
         if self.aux_clustering is None:
             self.aux_clustering = clustering.copy()
 
-        self.sampler_1.partition_sampler.split_merge_setup_kernel._update(self.aux_clustering)
+        self.sampler_1.partition_sampler.split_merge_setup_kernel.update(self.aux_clustering)
 
-        self.sampler_2.partition_sampler.split_merge_setup_kernel._update(clustering)
+        self.sampler_2.partition_sampler.split_merge_setup_kernel.update(clustering)
 
         clustering = self.sampler_1.sample(clustering, data)
 

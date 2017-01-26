@@ -34,8 +34,8 @@ class SplitMergeSetupKernel(object):
 
         clustering = np.array(clustering, dtype=np.int)
 
-        if self.iter < self.num_adaptation_iters:
-            self._update(clustering)
+        if self._can_update(clustering):
+            self.update(clustering)
 
         num_data_points = len(clustering)
 
@@ -59,17 +59,23 @@ class SplitMergeSetupKernel(object):
 
         return anchors, list(anchors) + sigma
 
-    def _propose_anchors(self, num_anchors):
+    def update(self, clustering):
+        pass
+
+    def _can_update(self, clustering):
         raise NotImplementedError()
 
-    def _update(self, clustering):
-        pass
+    def _propose_anchors(self, num_anchors):
+        raise NotImplementedError()
 
 
 class UniformSplitMergeSetupKernel(SplitMergeSetupKernel):
     '''
     Setup a split merge move by selecting anchors uniformly.
     '''
+
+    def _can_update(self, clustering):
+        return False
 
     def _propose_anchors(self, num_anchors):
         return np.random.choice(np.arange(self.num_data_points), replace=False, size=num_anchors)
@@ -83,6 +89,19 @@ class GibbsSplitMergeSetupKernel(SplitMergeSetupKernel):
         self.threshold = threshold
 
         self.max_clusters_seen = 0
+
+    def _can_update(self, clustering):
+        num_clusters = len(np.unique(clustering))
+
+        if (num_clusters > self.max_clusters_seen) and (self.iter <= self.num_adaptation_iters):
+            can_update = True
+
+            self.max_clusters_seen = num_clusters
+
+        else:
+            can_update = False
+
+        return can_update
 
     def _propose_anchors(self, num_achors):
         anchor_1 = np.random.randint(0, self.num_data_points)
@@ -106,17 +125,7 @@ class GibbsSplitMergeSetupKernel(SplitMergeSetupKernel):
 
         return int(anchor_1), int(anchor_2)
 
-    def _update(self, clustering):
-        num_clusters = len(np.unique(clustering))
-
-        if num_clusters <= self.max_clusters_seen:
-            return
-
-        else:
-            self.max_clusters_seen = num_clusters
-
-        print 'Updating anchor proposal distribution'
-
+    def update(self, clustering):
         self.cluster_params = {}
 
         self.clusters_to_data = {}
@@ -172,6 +181,19 @@ class ClusterInformedSplitMergeSetupKernel(SplitMergeSetupKernel):
 
         self.max_clusters_seen = 0
 
+    def _can_update(self, clustering):
+        num_clusters = len(np.unique(clustering))
+
+        if (num_clusters > self.max_clusters_seen) and (self.iter <= self.num_adaptation_iters):
+            can_update = True
+
+            self.max_clusters_seen = num_clusters
+
+        else:
+            can_update = False
+
+        return can_update
+
     def _propose_anchors(self, num_achors):
         anchor_1 = np.random.randint(0, self.num_data_points)
 
@@ -191,20 +213,12 @@ class ClusterInformedSplitMergeSetupKernel(SplitMergeSetupKernel):
 
         return anchor_1, anchor_2
 
-    def _update(self, clustering):
-        num_clusters = len(np.unique(clustering))
-
-        if num_clusters <= self.max_clusters_seen:
-            return
-
-        else:
-            self.max_clusters_seen = num_clusters
-
-        print 'Updating proposal'
-
+    def update(self, clustering):
         clustering = relabel_clustering(clustering)
 
         clusters = np.unique(clustering)
+
+        num_clusters = len(np.unique(clustering))
 
         self.cluster_probs = np.zeros((num_clusters, num_clusters))
 
@@ -307,8 +321,11 @@ class PointInformedSplitMergeSetupKernel(SplitMergeSetupKernel):
 
         return anchor_1, anchor_2
 
-    def _update(self, clustering):
+    def update(self, clustering):
         pass
+
+    def _can_update(self, clustering):
+        return False
 
     def _set_data_to_clusters(self, i):
         self.data_to_clusters[i] = np.zeros(self.num_data_points)
