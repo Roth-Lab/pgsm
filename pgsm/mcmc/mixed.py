@@ -19,6 +19,10 @@ class MixedSampler(object):
 
         self.split_merge_sampler = split_merge_sampler
 
+    @property
+    def split_merge_setup_kernel(self):
+        return self.split_merge_sampler.split_merge_setup_kernel
+
     def sample(self, clustering, data, num_iters=1):
         for _ in range(num_iters):
             clustering = self.gibbs_sampler.sample(clustering, data, num_iters=self.gibbs_per_split_merge)
