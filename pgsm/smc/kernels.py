@@ -100,7 +100,7 @@ class AbstractSplitMergKernel(object):
 
         return self.create_particle(block_idx, data_point, parent_particle, log_q=log_q, log_q_norm=log_q_norm)
 
-    def setup(self, anchors, clustering, data, sigma):
+    def setup(self, anchors, clustering, data, sigma, set_constrained_path=True):
         '''
         Setup kernel for a split merge run based on anchors, current clustering, data and permutation of indices.
         '''
@@ -114,7 +114,8 @@ class AbstractSplitMergKernel(object):
 
         self.num_outside_blocks = num_global_blocks - num_anchor_blocks
 
-        self.constrained_path = get_constrained_path(clustering[sigma], data[sigma], self)
+        if set_constrained_path:
+            self.constrained_path = get_constrained_path(clustering[sigma], data[sigma], self)
 
     def _get_block_params(self, block_idx, data_point, parent_particle):
         '''

@@ -32,7 +32,7 @@ class SequentiallyAllocatedMergeSplitSampler(object):
     def _sample(self, clustering, data):
         anchors, sigma = self.split_merge_setup_kernel.setup_split_merge(clustering, 2)
 
-        self.kernel.setup(anchors, clustering, data, sigma)
+        self.kernel.setup(anchors, clustering, data, sigma, set_constrained_path=False)
 
         clustering_sigma = clustering[sigma]
 
