@@ -81,12 +81,10 @@ class UniformSplitMergeSetupKernel(SplitMergeSetupKernel):
         return np.random.choice(np.arange(self.num_data_points), replace=False, size=num_anchors)
 
 
-class GibbsSplitMergeSetupKernel(SplitMergeSetupKernel):
+class CRPInformedSplitMergeSetupKernel(SplitMergeSetupKernel):
 
-    def __init__(self, data, dist, partition_prior, num_adaptation_iters=float('inf'), threshold=0.01):
+    def __init__(self, data, dist, partition_prior, num_adaptation_iters=float('inf')):
         SplitMergeSetupKernel.__init__(self, data, dist, partition_prior, num_adaptation_iters=num_adaptation_iters)
-
-        self.threshold = threshold
 
         self.max_clusters_seen = 0
 
@@ -103,25 +101,22 @@ class GibbsSplitMergeSetupKernel(SplitMergeSetupKernel):
 
         return can_update
 
-    def _propose_anchors(self, num_achors):
+    def _propose_anchors(self, num_anchors):
+        if num_anchors != 2:
+            raise Exception('CRPInformedSplitMergeSetupKernel only works for 2 anchors')
+
         anchor_1 = np.random.randint(0, self.num_data_points)
 
         if anchor_1 not in self.data_to_clusters:
             self._set_data_to_clusters(anchor_1)
 
-        if len(self.data_to_clusters[anchor_1]) == 0:
-            return np.random.choice(np.arange(self.num_data_points), replace=False, size=2)
-
-        cluster = np.random.choice(self.data_to_clusters[anchor_1])
+        cluster = np.random.choice(self.data_to_clusters[anchor_1].keys(), p=self.data_to_clusters[anchor_1].values())
 
         cluster_members = set(self.clusters_to_data[cluster])
 
         cluster_members.discard(anchor_1)
 
-        if len(cluster_members) == 0:
-            return np.random.choice(np.arange(len(self.data_to_clusters)), replace=False, size=2)
-
-        anchor_2 = np.random.choice(list(cluster_members), replace=False, size=1)
+        anchor_2 = np.random.choice(list(cluster_members))
 
         return int(anchor_1), int(anchor_2)
 
@@ -137,7 +132,10 @@ class GibbsSplitMergeSetupKernel(SplitMergeSetupKernel):
         for c in np.unique(clustering):
             cluster_data = self.data[clustering == c]
 
-            self.cluster_params[c] = self.dist.create_params_from_data(cluster_data)
+            self.cluster_params[c] = self.dist.create_params()
+
+            for data_point in cluster_data:
+                self.cluster_params[c].increment(data_point)
 
             self.clusters_to_data[c] = np.where(clustering == c)[0].flatten()
 
@@ -163,13 +161,7 @@ class GibbsSplitMergeSetupKernel(SplitMergeSetupKernel):
 
         p, _ = exp_normalize(log_p)
 
-        self.data_to_clusters[data_idx] = []
-
-        for c in self.cluster_params:
-            cluster_idx = self.cluster_params.keys().index(c)
-
-            if p[cluster_idx] >= self.threshold:
-                self.data_to_clusters[data_idx].append(c)
+        self.data_to_clusters[data_idx] = dict(zip(self.cluster_params.keys(), p))
 
 
 class ClusterInformedSplitMergeSetupKernel(SplitMergeSetupKernel):
@@ -194,7 +186,10 @@ class ClusterInformedSplitMergeSetupKernel(SplitMergeSetupKernel):
 
         return can_update
 
-    def _propose_anchors(self, num_achors):
+    def _propose_anchors(self, num_anchors):
+        if num_anchors != 2:
+            raise Exception('ClusterInformedSplitMergeSetupKernel only works for 2 anchors')
+
         anchor_1 = np.random.randint(0, self.num_data_points)
 
         cluster_1 = self.data_to_clusters[anchor_1]
@@ -278,6 +273,9 @@ class PointInformedSplitMergeSetupKernel(SplitMergeSetupKernel):
         self.log_seperate_margs = self.dist.log_predictive_likelihood_bulk(self.data, params)
 
     def _propose_anchors(self, num_anchors):
+        if num_anchors != 2:
+            raise Exception('PointInformedSplitMergeSetupKernel only works for 2 anchors')
+
         anchor_1 = np.random.randint(0, self.num_data_points)
 
         if anchor_1 not in self.data_to_clusters:
