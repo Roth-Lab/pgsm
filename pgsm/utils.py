@@ -22,7 +22,7 @@ def cluster_entropy(clustering):
     return entropy
 
 
-def held_out_log_predicitive(clustering, dist, partition_prior, test_data, train_data):
+def held_out_log_predicitive(clustering, dist, partition_prior, test_data, train_data, per_point=False):
     clustering = relabel_clustering(clustering)
 
     block_params = []
@@ -53,7 +53,11 @@ def held_out_log_predicitive(clustering, dist, partition_prior, test_data, train
     for z, (w, params) in enumerate(zip(log_cluster_prior, block_params)):
         log_p[:, z] = w + dist.log_predictive_likelihood_bulk(test_data, params)
 
-    return np.sum(log_sum_exp(log_p, axis=1))
+    if per_point:
+        return log_sum_exp(log_p, axis=1)
+
+    else:
+        return np.sum(log_sum_exp(log_p, axis=1))
 
 
 def relabel_clustering(clustering):
