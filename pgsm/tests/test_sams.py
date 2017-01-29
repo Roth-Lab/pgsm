@@ -101,7 +101,7 @@ class Test(unittest.TestCase):
 
         N = 3
 
-        clustering = np.random.randint(0, 10, size=N)
+        clustering = np.array([0, 0, 1])
 
         data = np.random.multivariate_normal(np.random.random(size=dim) * 100, np.eye(dim), size=N)
 
@@ -113,25 +113,33 @@ class Test(unittest.TestCase):
 
         sampler = SequentiallyAllocatedMergeSplitSampler(dist, partition_prior, split_merge_setup_kernel)
 
-        anchors, sigma = split_merge_setup_kernel.setup_split_merge(clustering, 2)
+#         anchors, sigma = split_merge_setup_kernel.setup_split_merge(clustering, 2)
+
+        anchors = [0, 2]
+
+        sigma = [0, 2, 1]
 
         sampler.kernel.setup(anchors, clustering, data, sigma)
 
-        clustering, mh_ratio = sampler._merge(data)
+        clustering_sigma = clustering[sigma]
+
+        data_sigma = data[sigma]
+
+        clustering, mh_ratio = sampler._merge(data_sigma)
 
         log_p = partition_prior.log_likelihood([N, ])
 
         self.assertAlmostEqual(mh_ratio, log_p)
 
-        clustering, mh_ratio = sampler._split(data)
+        clustering, mh_ratio = sampler._split(data_sigma)
 
         clustering = clustering.astype(int)
 
         log_q = 0
 
-        params = [dist.create_params_from_data(data[0]), dist.create_params_from_data(data[1])]
+        params = [dist.create_params_from_data(data_sigma[0]), dist.create_params_from_data(data_sigma[1])]
 
-        for c, x in zip(clustering[2:], data[2:]):
+        for c, x in zip(clustering_sigma[2:], data_sigma[2:]):
             block_probs = np.zeros(2)
 
             for i in range(2):
