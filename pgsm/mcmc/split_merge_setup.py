@@ -137,27 +137,40 @@ class CRPInformedSplitMergeSetupKernel(SplitMergeSetupKernel):
 
         anchor_2 = np.random.choice(list(cluster_members))
 
+#         if cluster == self.clustering[anchor_1]:
+#             print 'proposing split'
+#
+#         else:
+#             print 'proposing merge'
+
         return int(anchor_1), int(anchor_2)
 
     def _set_data_to_clusters(self, data_idx):
         data_point = self.data[data_idx]
 
-        log_p = np.zeros(len(self.cluster_params))
+        num_clusters = len(self.cluster_params)
+
+        log_p = np.zeros(num_clusters)
+
+        cluster = self.clustering[data_idx]
 
         for c, block_params in self.cluster_params.items():
-            if self.clustering[data_idx] == c:
-                block_params.decrement(data_point)
-
-            if block_params.N == 0:
-                log_p[c] = float('-inf')
+            if c == cluster:
+                continue
 
             else:
                 log_p[c] = self.partition_prior.log_tau_2(block_params.N)
 
                 log_p[c] += self.dist.log_predictive_likelihood(data_point, block_params)
 
-            if self.clustering[data_idx] == c:
-                block_params.increment(data_point)
+        if self.cluster_params[cluster].N == 1:
+            log_p[cluster] = float('-inf')
+
+        else:
+            log_p[cluster] = log_sum_exp(log_p)
+
+            if num_clusters > 1:
+                log_p[cluster] -= np.log(num_clusters - 1)
 
         p, _ = exp_normalize(log_p)
 
@@ -221,7 +234,11 @@ class ClusterInformedSplitMergeSetupKernel(SplitMergeSetupKernel):
 
                 log_p[c_j] = merge_marg - (margs[c_i] + margs[c_j])
 
-            log_p[c_i] = log_sum_exp(log_p)
+            if num_clusters == 1:
+                log_p[c_i] = 0
+
+            else:
+                log_p[c_i] = -np.log(num_clusters - 1) + log_sum_exp(log_p)
 
             self.cluster_probs[c_i], _ = exp_normalize(log_p)
 
