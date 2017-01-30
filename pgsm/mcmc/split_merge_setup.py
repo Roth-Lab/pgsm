@@ -7,7 +7,7 @@ from __future__ import division
 
 import numpy as np
 
-from pgsm.math_utils import discrete_rvs, exp_normalize, log_sum_exp
+from pgsm.math_utils import discrete_rvs, exp_normalize, log_normalize, log_sum_exp
 from pgsm.utils import relabel_clustering
 
 
@@ -81,6 +81,102 @@ class UniformSplitMergeSetupKernel(SplitMergeSetupKernel):
         return np.random.choice(np.arange(self.num_data_points), replace=False, size=num_anchors)
 
 
+class ThresholdInformedSplitMergeSetupKernel(SplitMergeSetupKernel):
+
+    def __init__(self, data, dist, partition_prior, num_adaptation_iters=float('inf'), threshold=0.01):
+        SplitMergeSetupKernel.__init__(self, data, dist, partition_prior, num_adaptation_iters=num_adaptation_iters)
+
+        self.max_clusters_seen = 0
+
+        self.threshold = threshold
+
+    def update(self, clustering):
+        self.cluster_params = {}
+
+        self.clusters_to_data = {}
+
+        self.data_to_clusters = {}
+
+        self.clustering = relabel_clustering(clustering)
+
+        for c in np.unique(clustering):
+            cluster_data = self.data[clustering == c]
+
+            self.cluster_params[c] = self.dist.create_params()
+
+            for data_point in cluster_data:
+                self.cluster_params[c].increment(data_point)
+
+            self.clusters_to_data[c] = np.where(clustering == c)[0].flatten()
+
+    def _can_update(self, clustering):
+        num_clusters = len(np.unique(clustering))
+
+        if (num_clusters > self.max_clusters_seen) and (self.iter <= self.num_adaptation_iters):
+            can_update = True
+
+            self.max_clusters_seen = num_clusters
+
+        else:
+            can_update = False
+
+        return can_update
+
+    def _propose_anchors(self, num_anchors):
+        if num_anchors != 2:
+            raise Exception('ThresholdInformedSplitMergeSetupKernel only works for 2 anchors')
+
+        anchor_1 = np.random.randint(0, self.num_data_points)
+
+        if anchor_1 not in self.data_to_clusters:
+            self._set_data_to_clusters(anchor_1)
+
+        if len(self.data_to_clusters[anchor_1]) == 0:
+            return np.random.choice(np.arange(self.num_data_points), replace=False, size=2)
+
+        cluster = np.random.choice(self.data_to_clusters[anchor_1])
+
+        cluster_members = set(self.clusters_to_data[cluster])
+
+        cluster_members.discard(anchor_1)
+
+        anchor_2 = np.random.choice(list(cluster_members))
+
+        return int(anchor_1), int(anchor_2)
+
+    def _set_data_to_clusters(self, data_idx):
+        data_point = self.data[data_idx]
+
+        num_clusters = len(self.cluster_params)
+
+        log_p = np.zeros(num_clusters)
+
+        cluster = self.clustering[data_idx]
+
+        for c, block_params in self.cluster_params.items():
+            if c == cluster:
+                block_params.decrement(data_point)
+
+            if block_params.N == 0:
+                log_p[c] = float('-inf')
+
+            else:
+                log_p[c] = self.partition_prior.log_tau_2(block_params.N)
+
+                log_p[c] += self.dist.log_predictive_likelihood(data_point, block_params)
+
+            if c == cluster:
+                block_params.increment(data_point)
+
+        log_p = log_normalize(log_p)
+
+        self.data_to_clusters[data_idx] = []
+
+        for c, log_p_c in enumerate(log_p):
+            if log_p_c >= np.log(self.threshold):
+                self.data_to_clusters[data_idx].append(c)
+
+
 class CRPInformedSplitMergeSetupKernel(SplitMergeSetupKernel):
 
     def __init__(self, data, dist, partition_prior, num_adaptation_iters=float('inf')):
@@ -136,12 +232,6 @@ class CRPInformedSplitMergeSetupKernel(SplitMergeSetupKernel):
         cluster_members.discard(anchor_1)
 
         anchor_2 = np.random.choice(list(cluster_members))
-
-#         if cluster == self.clustering[anchor_1]:
-#             print 'proposing split'
-#
-#         else:
-#             print 'proposing merge'
 
         return int(anchor_1), int(anchor_2)
 
