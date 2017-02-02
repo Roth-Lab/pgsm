@@ -83,7 +83,7 @@ class PyCloneDistribution(object):
         return log_p
 
 
-def load_data_from_file(file_name, error_rate=1e-3, grid_size=1000, perfect_prior=False, tumour_content=1.0):
+def load_data_from_file(file_name, error_rate=1e-3, grid_size=1000, perfect_prior=False, tumour_content=None):
     '''
     Given a PyClone input tsv formatted file, load the discretized grid of likelihoods.
 
@@ -94,6 +94,17 @@ def load_data_from_file(file_name, error_rate=1e-3, grid_size=1000, perfect_prio
     data = []
 
     df = pd.read_csv(file_name, sep='\t')
+
+    if tumour_content is None:
+        if 'tumour_content' in df.columns:
+            assert len(df['tumour_content'].unique()) == 1
+
+            tumour_content = df['tumour_content'].iloc[0]
+
+            print 'Tumour content of {} detected in file'.format(tumour_content)
+
+        else:
+            tumour_content = 1.0
 
     for _, row in df.iterrows():
         a = row['ref_counts']
