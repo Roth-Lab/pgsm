@@ -60,6 +60,19 @@ def held_out_log_predicitive(clustering, dist, partition_prior, test_data, train
         return np.sum(log_sum_exp(log_p, axis=1))
 
 
+def log_joint_probability(clustering, data, dist, partition_prior):
+    ll = partition_prior.log_tau_1(len(np.unique(clustering)))
+
+    for z in np.unique(clustering):
+        params = dist.create_params_from_data(data[clustering == z])
+
+        ll += partition_prior.log_tau_2(params.N)
+
+        ll += dist.log_marginal_likelihood(params)
+
+    return ll
+
+
 def relabel_clustering(clustering):
     relabeled = []
 
