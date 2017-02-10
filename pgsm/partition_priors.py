@@ -56,7 +56,7 @@ class FiniteDirichletPartitionPrior(PartitionPrior):
             return 0
 
         else:
-            return float('-inf')
+            return -1e20  # Hack: should be float('-inf') but causes numerical issues.
 
     def log_tau_2(self, x):
         return log_gamma(x + self.alpha)
@@ -66,7 +66,7 @@ class FiniteDirichletPartitionPrior(PartitionPrior):
             return 0
 
         else:
-            return float('-inf')
+            return -1e20  # Hack: should be float('-inf') but causes numerical issues.
 
     def log_tau_2_diff(self, x):
         return math.log(x + self.alpha)
