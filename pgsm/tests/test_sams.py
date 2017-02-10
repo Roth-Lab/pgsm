@@ -113,8 +113,6 @@ class Test(unittest.TestCase):
 
         sampler = SequentiallyAllocatedMergeSplitSampler(dist, partition_prior, split_merge_setup_kernel)
 
-#         anchors, sigma = split_merge_setup_kernel.setup_split_merge(clustering, 2)
-
         anchors = [0, 2]
 
         sigma = [0, 2, 1]
@@ -151,7 +149,7 @@ class Test(unittest.TestCase):
 
             params[c].increment(x)
 
-        log_p = sum([dist.log_marginal_likelihood(x) for x in params])
+        log_p = partition_prior.log_likelihood([x.N for x in params])
 
         self.assertAlmostEqual(mh_ratio, log_p - log_q)
 
