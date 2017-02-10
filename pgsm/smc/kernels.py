@@ -303,7 +303,9 @@ class AnnealedSplitMergeKernel(AbstractSplitMergKernel):
             s = self.num_anchors
 
             if n == s:
-                log_annealing_correction = self.log_target_density(block_params)
+                log_annealing_correction = None
+
+                log_q_norm = self.log_target_density(block_params)
 
             else:
                 log_annealing_correction = (1 / (n - s)) * self.log_target_density(block_params)
