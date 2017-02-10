@@ -396,11 +396,11 @@ class PointInformedSplitMergeSetupKernel(SplitMergeSetupKernel):
 
         log_p_anchor = self.data_to_clusters[anchor_1].copy()
 
-        do_merge = (np.random.random() <= 0.5)
+        u = np.random.random()
 
         alpha = np.random.beta(1, 9) * 100
 
-        if do_merge:
+        if u <= 0.5:
             x = np.percentile(log_p_anchor, alpha)
 
             log_p_anchor[log_p_anchor > x] = float('-inf')
