@@ -89,7 +89,7 @@ class SequentiallyAllocatedMergeSplitSampler(object):
             0,
             data[1],
             particle,
-            log_q={0: self.kernel.log_target_density([self.dist.create_params_from_data(data[:2]), ])}
+            log_q={0: 0}
         )
 
         for data_point in data[2:]:
@@ -97,7 +97,9 @@ class SequentiallyAllocatedMergeSplitSampler(object):
 
         clustering = get_cluster_labels(particle)
 
-        log_mh_factor = get_log_normalisation(particle)
+        init_params = [self.dist.create_params_from_data(data[[0, 1]]), ]
+
+        log_mh_factor = get_log_normalisation(particle) + self.kernel.log_target_density(init_params)
 
         return clustering, log_mh_factor
 
@@ -106,14 +108,14 @@ class SequentiallyAllocatedMergeSplitSampler(object):
             0,
             data[0],
             None,
-            log_q={0: self.dist.log_marginal_likelihood(self.dist.create_params_from_data(data[0]))}
+            log_q={0: 0}
         )
 
         particle = self.kernel.create_particle(
             1,
             data[1],
             particle,
-            log_q={1: self.dist.log_marginal_likelihood(self.dist.create_params_from_data(data[1]))}
+            log_q={1: 0}
         )
 
         if constrained_clustering is None:
@@ -128,6 +130,11 @@ class SequentiallyAllocatedMergeSplitSampler(object):
 
         clustering = get_cluster_labels(particle)
 
-        log_mh_factor = get_log_normalisation(particle)
+        init_params = [
+            self.dist.create_params_from_data(data[0]),
+            self.dist.create_params_from_data(data[1]),
+        ]
+
+        log_mh_factor = get_log_normalisation(particle) + self.kernel.log_target_density(init_params)
 
         return clustering, log_mh_factor
