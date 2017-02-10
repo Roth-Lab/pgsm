@@ -21,6 +21,12 @@ class PartitionPrior(object):
     def log_tau_2(self, x):
         raise NotImplementedError()
 
+    def log_tau_1_diff(self, x):
+        return self.log_tau_1(x + 1) - self.log_tau_1(x)
+
+    def log_tau_2_diff(self, x):
+        return self.log_tau_2(x + 1) - self.log_tau_2(x)
+
 
 class DirichletProcessPartitionPrior(PartitionPrior):
 
