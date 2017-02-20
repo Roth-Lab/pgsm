@@ -43,9 +43,7 @@ class PyCloneDistribution(object):
         self.grid_size = grid_size
 
     def create_params(self):
-        uniform_log_prior = -np.log(self.grid_size) * np.ones(self.grid_size)
-
-        return PycloneParameters(uniform_log_prior, 0)
+        return PycloneParameters(np.zeros(self.grid_size), 0)
 
     def create_params_from_data(self, X):
         X = np.atleast_2d(X)
@@ -53,10 +51,18 @@ class PyCloneDistribution(object):
         return PycloneParameters(np.sum(X, axis=0), X.shape[0])
 
     def log_marginal_likelihood(self, params):
-        return log_sum_exp(params.log_pdf_grid)
+        return log_sum_exp(params.log_pdf_grid - np.log(self.grid_size))
 
     def log_predictive_likelihood(self, data_point, params):
-        return log_sum_exp(data_point + params.normalized_log_pdf_grid)
+        params.increment(data_point)
+
+        ll = self.log_marginal_likelihood(params)
+
+        params.decrement(data_point)
+
+        ll -= self.log_marginal_likelihood(params)
+
+        return ll
 
     def log_predictive_likelihood_bulk(self, data, params):
         log_p = np.zeros(len(data))
@@ -113,9 +119,15 @@ def load_data_from_file(file_name, error_rate=1e-3, grid_size=1000, perfect_prio
 
         cn_n = row['normal_cn']
 
-        major_cn = row['major_cn']
+        if 'major_cn' in row:
+            major_cn = row['major_cn']
 
-        total_cn = row['major_cn'] + row['minor_cn']
+            total_cn = row['major_cn'] + row['minor_cn']
+
+        else:
+            total_cn = int(row['total_cn'])
+
+            major_cn = total_cn
 
         # Use the true mutational genotype information
         if perfect_prior:
