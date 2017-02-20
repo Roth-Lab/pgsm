@@ -140,6 +140,9 @@ class ThresholdInformedSplitMergeSetupKernel(SplitMergeSetupKernel):
 
         cluster_members.discard(anchor_1)
 
+        if len(cluster_members) == 0:
+            return np.random.choice(np.arange(self.num_data_points), replace=False, size=2)
+
         anchor_2 = np.random.choice(list(cluster_members))
 
         return int(anchor_1), int(anchor_2)
