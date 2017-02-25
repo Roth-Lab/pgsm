@@ -14,8 +14,7 @@ from pgsm.mcmc.collapsed_gibbs import CollapsedGibbsSampler
 from pgsm.mcmc.concentration import GammaPriorConcentrationSampler
 from pgsm.mcmc.particle_gibbs_split_merge import ParticleGibbsSplitMergeSampler
 from pgsm.partition_priors import DirichletProcessPartitionPrior
-
-from pgsm.misc import Timer
+from pgsm.mcmc.split_merge_setup import UniformSplitMergeSetupKernel
 
 
 def plot_clustering(clustering, data, title):
@@ -26,8 +25,8 @@ def plot_clustering(clustering, data, title):
     pp.draw()
 
 
-def print_info(pred_clustering, true_clustering, iteration, time):
-    print 'Iteration: {0}, Elapsed time: {1}'.format(i, t.elapsed)
+def print_info(pred_clustering, true_clustering, iteration):
+    print 'Iteration: {0}'.format(i)
     print 'Number of cluster: {}'.format(len(np.unique(pred_clustering)))
     print 'Homogeneity: {0}, Completeness: {1}, V-measure: {2}'.format(
         *homogeneity_completeness_v_measure(pred_clustering, true_clustering)
@@ -48,25 +47,27 @@ def simulate_data(nun_data_points_per_cluster=100):
 
 np.random.seed(0)
 data, true_clustering = simulate_data(100)
+
 dist = MultivariateNormalDistribution(2)
 partition_prior = DirichletProcessPartitionPrior(1)
-conc_sampler = GammaPriorConcentrationSampler(1, 1)
-pgsm_sampler = ParticleGibbsSplitMergeSampler.create_from_dist(dist, partition_prior, num_anchors=None)
+
 gibbs_sampler = CollapsedGibbsSampler(dist, partition_prior)
+
+setup_kernel = UniformSplitMergeSetupKernel(data, dist, partition_prior)
+pgsm_sampler = ParticleGibbsSplitMergeSampler.create_from_dist(dist, partition_prior, setup_kernel, num_anchors=2)
+
+conc_sampler = GammaPriorConcentrationSampler(1, 1)
 
 num_data_points = data.shape[0]
 
-with Timer() as t:
-    pred_clustering = np.zeros(num_data_points)
-    for i in range(100):
-        if i % 10 == 0:
-            t.stop()
-            print_info(pred_clustering, true_clustering, i, t.elapsed)
-            t.start()
-        pred_clustering = pgsm_sampler.sample(pred_clustering, data)
-        pred_clustering = gibbs_sampler.sample(pred_clustering, data)
-        num_clusters = len(np.unique(pred_clustering))
-        partition_prior.alpha = conc_sampler.sample(partition_prior.alpha, num_clusters, num_data_points)
+pred_clustering = np.zeros(num_data_points)
+for i in range(100):
+    if i % 10 == 0:
+        print_info(pred_clustering, true_clustering, i)
+    pred_clustering = pgsm_sampler.sample(pred_clustering, data)
+    pred_clustering = gibbs_sampler.sample(pred_clustering, data)
+    num_clusters = len(np.unique(pred_clustering))
+    partition_prior.alpha = conc_sampler.sample(partition_prior.alpha, num_clusters, num_data_points)
 
 plot_clustering(pred_clustering, data, 'Predicted clustering')
 plot_clustering(true_clustering, data, 'True clustering')
