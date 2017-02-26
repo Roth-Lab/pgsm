@@ -1,12 +1,14 @@
 # PGSM
 
 Python implementation of samplers from "Particle Gibbs Split-Merge Sampling for Bayesian Inference in Mixture Models".
+Version 0.1.1 of the software was used for all experiments in the paper and the code can be found [here](https://bitbucket.org/aroth85/pgsm/get/0.1.1.zip).
+
 Please report any issues using the issue tracker.
 Questions about the software or PGSM method can be asked on the [user group](https://groups.google.com/forum/#!forum/pgsm-user-group).
 
 ## Installation
 
-The following dependencies need to be installs
+The following dependencies need to be installed
 
 - python 2.7.x
 - numba
