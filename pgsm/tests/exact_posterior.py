@@ -1,8 +1,3 @@
-'''
-Created on 9 Feb 2017
-
-@author: Andrew Roth
-'''
 import numpy as np
 
 from pgsm.math_utils import exp_normalize
@@ -10,7 +5,7 @@ from pgsm.utils import log_joint_probability, relabel_clustering
 
 
 def get_all_clusterings(size):
-    for partition in get_all_partitions(range(size)):
+    for partition in get_all_partitions(list(range(size))):
         clustering = np.zeros(size, dtype=int)
 
         for block_idx, block in enumerate(partition):
@@ -52,4 +47,4 @@ def get_exact_posterior(data, dist, partition_prior):
 
     p, _ = exp_normalize(np.array(log_p))
 
-    return dict(zip(clusterings, p))
+    return dict(list(zip(clusterings, p)))

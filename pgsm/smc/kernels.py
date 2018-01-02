@@ -1,10 +1,3 @@
-'''
-Created on 8 Dec 2016
-
-@author: Andrew Roth
-'''
-from __future__ import division
-
 from collections import namedtuple
 
 import numpy as np
@@ -90,11 +83,11 @@ class AbstractSplitMergKernel(object):
 
         log_q = self.get_log_q(data_point, parent_particle)
 
-        block_probs, log_q_norm = exp_normalize(np.array(log_q.values()))
+        block_probs, log_q_norm = exp_normalize(np.array(list(log_q.values())))
 
         block_idx = np.random.multinomial(1, block_probs).argmax()
 
-        block_idx = log_q.keys()[block_idx]
+        block_idx = list(log_q.keys())[block_idx]
 
         return self.create_particle(block_idx, data_point, parent_particle, log_q=log_q, log_q_norm=log_q_norm)
 

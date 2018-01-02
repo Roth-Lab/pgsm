@@ -1,10 +1,3 @@
-'''
-Created on 24 Jan 2017
-
-@author: andrew
-'''
-from __future__ import division
-
 import unittest
 
 import numpy as np

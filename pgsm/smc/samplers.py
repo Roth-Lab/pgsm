@@ -1,10 +1,3 @@
-'''
-Created on 8 Dec 2016
-
-@author: Andrew Roth
-'''
-from __future__ import division
-
 import numpy as np
 
 from pgsm.math_utils import exp_normalize, log_sum_exp
@@ -67,7 +60,7 @@ class ParticleSwarm(object):
         self._log_norm_const = None
 
     def to_dict(self):
-        return dict(zip(self.particles, self.weights))
+        return dict(list(zip(self.particles, self.weights)))
 
 
 class ImplicitParticleSwarm(ParticleSwarm):
@@ -127,7 +120,7 @@ class ImplicitParticleSwarm(ParticleSwarm):
         self._log_norm_const = None
 
     def to_dict(self):
-        return dict(zip(self.particles, self.aggregate_weights))
+        return dict(list(zip(self.particles, self.aggregate_weights)))
 
 
 class SMCSampler(object):
@@ -144,7 +137,7 @@ class SMCSampler(object):
             new_swarm = ParticleSwarm()
 
             if self.verbose:
-                print('Resampling', swarm.relative_ess)
+                print(('Resampling', swarm.relative_ess))
 
             log_uniform_weight = -np.log(self.num_particles)
 
@@ -251,7 +244,7 @@ class ImplicitParticleGibbsSampler(SMCSampler):
             new_swarm = ImplicitParticleSwarm()
 
             if self.verbose:
-                print('Resampling', swarm.relative_ess)
+                print(('Resampling', swarm.relative_ess))
 
             if conditional_particle is None:
                 multiplicities = np.random.multinomial(self.num_particles, swarm.aggregate_weights)
@@ -303,7 +296,7 @@ class ImplicitParticleGibbsSampler(SMCSampler):
                 else:
                     multiplicities = np.random.multinomial(parent_multiplicity, block_probs)
 
-                for block_idx, multiplicity in zip(log_q.keys(), multiplicities):
+                for block_idx, multiplicity in zip(list(log_q.keys()), multiplicities):
                     if multiplicity == 0:
                         continue
 

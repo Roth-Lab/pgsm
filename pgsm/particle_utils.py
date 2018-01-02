@@ -1,10 +1,3 @@
-'''
-Created on 8 Dec 2016
-
-@author: Andrew Roth
-'''
-from __future__ import division
-
 from collections import defaultdict
 
 import numpy as np
@@ -55,7 +48,7 @@ def get_cluster_labels(particle):
 
     Z = np.zeros(N)
 
-    for z, block in clustering.items():
+    for z, block in list(clustering.items()):
         for idx in block:
             Z[idx] = z
 

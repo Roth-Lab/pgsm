@@ -1,10 +1,3 @@
-'''
-Created on 9 Feb 2017
-
-@author: andrew
-'''
-from __future__ import division
-
 import unittest
 
 from collections import defaultdict, Counter
@@ -19,10 +12,10 @@ from pgsm.mcmc.split_merge_setup import UniformSplitMergeSetupKernel
 from pgsm.partition_priors import DirichletProcessPartitionPrior
 from pgsm.utils import relabel_clustering
 
-import simulate_test_data
+from . import simulate_test_data
 
-from exact_posterior import get_exact_posterior
-from mocks import MockDistribution, MockPartitionPrior
+from .exact_posterior import get_exact_posterior
+from .mocks import MockDistribution, MockPartitionPrior
 
 
 class Test(unittest.TestCase):
@@ -70,7 +63,7 @@ class Test(unittest.TestCase):
             seeds=None):
 
         if num_data_points is None:
-            num_data_points = range(2, 9)
+            num_data_points = list(range(2, 9))
 
         if seeds is None:
             seeds = [np.random.RandomState(x).randint(0, int(1e6)) for x in range(5)]
@@ -89,7 +82,7 @@ class Test(unittest.TestCase):
 
                 partition_prior.alpha = np.random.RandomState(seed).gamma(0.5, scale=2)
 
-                print n, seed, partition_prior.alpha
+                print(n, seed, partition_prior.alpha)
 
                 sampler = sampler_factory(data, dist, partition_prior)
 
@@ -120,9 +113,9 @@ class Test(unittest.TestCase):
         return posterior_probs
 
     def _test_posterior(self, pred_probs, true_probs):
-        print sorted(pred_probs.items())
-        print
-        print sorted(true_probs.items())
+        print(sorted(pred_probs.items()))
+        print()
+        print(sorted(true_probs.items()))
         for key in true_probs:
             self.assertAlmostEqual(pred_probs[key], true_probs[key], delta=0.02)
 

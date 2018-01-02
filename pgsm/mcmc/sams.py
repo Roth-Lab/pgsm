@@ -1,10 +1,3 @@
-'''
-Created on 8 Dec 2016
-
-@author: Andrew Roth
-'''
-from __future__ import division
-
 import numpy as np
 
 from pgsm.particle_utils import get_log_normalisation, get_cluster_labels

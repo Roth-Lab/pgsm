@@ -1,10 +1,3 @@
-'''
-Created on 8 Dec 2016
-
-@author: Andrew Roth
-'''
-from __future__ import division
-
 from pgsm.math_utils import discrete_rvs
 from pgsm.particle_utils import get_cluster_labels
 from pgsm.utils import relabel_clustering

@@ -1,10 +1,3 @@
-'''
-Created on 8 Dec 2016
-
-@author: Andrew Roth
-'''
-from __future__ import division
-
 import math
 
 from pgsm.math_utils import log_factorial, log_gamma

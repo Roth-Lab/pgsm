@@ -1,10 +1,3 @@
-'''
-Created on 9 Jan 2017
-
-@author: Andrew Roth
-'''
-from __future__ import division
-
 import numpy as np
 
 from pgsm.math_utils import discrete_rvs, exp_normalize, log_normalize, log_sum_exp
@@ -156,7 +149,7 @@ class ThresholdInformedSplitMergeSetupKernel(SplitMergeSetupKernel):
 
         cluster = self.clustering[data_idx]
 
-        for c, block_params in self.cluster_params.items():
+        for c, block_params in list(self.cluster_params.items()):
             if c == cluster:
                 block_params.decrement(data_point)
 
@@ -228,7 +221,7 @@ class CRPInformedSplitMergeSetupKernel(SplitMergeSetupKernel):
         if anchor_1 not in self.data_to_clusters:
             self._set_data_to_clusters(anchor_1)
 
-        cluster = np.random.choice(self.data_to_clusters[anchor_1].keys(), p=self.data_to_clusters[anchor_1].values())
+        cluster = np.random.choice(list(self.data_to_clusters[anchor_1].keys()), p=list(self.data_to_clusters[anchor_1].values()))
 
         cluster_members = set(self.clusters_to_data[cluster])
 
@@ -247,7 +240,7 @@ class CRPInformedSplitMergeSetupKernel(SplitMergeSetupKernel):
 
         cluster = self.clustering[data_idx]
 
-        for c, block_params in self.cluster_params.items():
+        for c, block_params in list(self.cluster_params.items()):
             if c == cluster:
                 continue
 
@@ -267,7 +260,7 @@ class CRPInformedSplitMergeSetupKernel(SplitMergeSetupKernel):
 
         p, _ = exp_normalize(log_p)
 
-        self.data_to_clusters[data_idx] = dict(zip(self.cluster_params.keys(), p))
+        self.data_to_clusters[data_idx] = dict(list(zip(list(self.cluster_params.keys()), p)))
 
 
 class ClusterInformedSplitMergeSetupKernel(SplitMergeSetupKernel):

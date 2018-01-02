@@ -26,11 +26,11 @@ def plot_clustering(clustering, data, title):
 
 
 def print_info(pred_clustering, true_clustering, iteration):
-    print 'Iteration: {0}'.format(i)
-    print 'Number of cluster: {}'.format(len(np.unique(pred_clustering)))
-    print 'Homogeneity: {0}, Completeness: {1}, V-measure: {2}'.format(
+    print('Iteration: {0}'.format(i))
+    print('Number of cluster: {}'.format(len(np.unique(pred_clustering))))
+    print('Homogeneity: {0}, Completeness: {1}, V-measure: {2}'.format(
         *homogeneity_completeness_v_measure(pred_clustering, true_clustering)
-    )
+    ))
 
 
 def simulate_data(nun_data_points_per_cluster=100):

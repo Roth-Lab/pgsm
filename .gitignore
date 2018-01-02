@@ -3,3 +3,4 @@
 .*project
 *__pycache__*
 /sandbox/
+*.bak

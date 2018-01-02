@@ -1,10 +1,3 @@
-'''
-Created on 19 Jan 2017
-
-@author: Andrew Roth
-'''
-from __future__ import division
-
 import numba
 import numpy as np
 import os
@@ -165,7 +158,7 @@ def load_data_from_file(file_name, error_rate=1e-3, grid_size=1000, perfect_prio
 
             tumour_content = df['tumour_content'].iloc[0]
 
-            print('Tumour content of {} detected in file'.format(tumour_content))
+            print(('Tumour content of {} detected in file'.format(tumour_content)))
 
         else:
             tumour_content = 1.0
