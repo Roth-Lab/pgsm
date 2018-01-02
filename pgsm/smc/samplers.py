@@ -144,7 +144,7 @@ class SMCSampler(object):
             new_swarm = ParticleSwarm()
 
             if self.verbose:
-                print 'Resampling', swarm.relative_ess
+                print('Resampling', swarm.relative_ess)
 
             log_uniform_weight = -np.log(self.num_particles)
 
@@ -251,7 +251,7 @@ class ImplicitParticleGibbsSampler(SMCSampler):
             new_swarm = ImplicitParticleSwarm()
 
             if self.verbose:
-                print 'Resampling', swarm.relative_ess
+                print('Resampling', swarm.relative_ess)
 
             if conditional_particle is None:
                 multiplicities = np.random.multinomial(self.num_particles, swarm.aggregate_weights)
@@ -291,14 +291,14 @@ class ImplicitParticleGibbsSampler(SMCSampler):
             for parent_log_W, parent_multiplicity, parent_particle in swarm:
                 log_q = kernel.get_log_q(data_point, parent_particle)
 
-                block_probs, log_q_norm = exp_normalize(np.array(log_q.values()))
+                block_probs, log_q_norm = exp_normalize(np.array(list(log_q.values())))
 
                 is_constrained_parent = (parent_particle == constrained_particle.parent_particle)
 
                 if is_constrained_parent:
                     multiplicities = np.random.multinomial(parent_multiplicity - 1, block_probs)
 
-                    multiplicities[log_q.keys().index(constrained_particle.block_idx)] += 1
+                    multiplicities[list(log_q.keys()).index(constrained_particle.block_idx)] += 1
 
                 else:
                     multiplicities = np.random.multinomial(parent_multiplicity, block_probs)

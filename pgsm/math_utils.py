@@ -94,6 +94,11 @@ def log_binomial_coefficient(n, x):
     return log_factorial(n) - log_factorial(x) - log_factorial(n - x)
 
 
+@numba.jit(cache=True, nopython=True)
+def log_beta(a, b):
+    return log_gamma(a) + log_gamma(b) - log_gamma(a + b)
+
+
 @numba.vectorize(["float64(float64)", "int64(float64)"])
 def log_gamma(x):
     return math.lgamma(x)

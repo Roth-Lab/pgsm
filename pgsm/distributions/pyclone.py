@@ -7,9 +7,10 @@ from __future__ import division
 
 import numba
 import numpy as np
+import os
 import pandas as pd
 
-from pgsm.math_utils import log_binomial_coefficient, log_normalize, log_sum_exp
+from pgsm.math_utils import log_binomial_coefficient, log_normalize, log_sum_exp, log_beta
 
 
 class PycloneParameters(object):
@@ -46,12 +47,17 @@ class PyCloneDistribution(object):
         return PycloneParameters(np.zeros(self.grid_size), 0)
 
     def create_params_from_data(self, X):
-        X = np.atleast_2d(X)
+        X = np.atleast_3d(X)
 
         return PycloneParameters(np.sum(X, axis=0), X.shape[0])
 
     def log_marginal_likelihood(self, params):
-        return log_sum_exp(params.log_pdf_grid - np.log(self.grid_size))
+        log_p = 0
+
+        for i in range(self.grid_size[0]):
+            log_p += log_sum_exp(params.log_pdf_grid[i] - np.log(self.grid_size[1]))
+
+        return log_p
 
     def log_predictive_likelihood(self, data_point, params):
         params.increment(data_point)
@@ -89,6 +95,58 @@ class PyCloneDistribution(object):
         return log_p
 
 
+def load_data_from_files(files, error_rate=1e-3, grid_size=1000, tumour_content=1.0):
+    df = []
+
+    for file_name in files:
+        sample_df = pd.read_csv(file_name, sep='\t')
+
+        sample_df['sample'] = os.path.basename(file_name).split('.')[0]
+
+        df.append(sample_df)
+
+    df = pd.concat(df)
+
+    samples = set(df['sample'])
+
+    df = df.groupby('mutation_id').filter(lambda x: set(x['sample']) == samples)
+
+    samples = sorted(samples)
+
+    data = {}
+
+    for name, mut_df in df.groupby('mutation_id'):
+        mut_data = []
+
+        mut_df = mut_df.set_index('sample')
+
+        for sample in samples:
+            row = mut_df.loc[sample]
+
+            a = row['ref_counts']
+
+            b = row['var_counts']
+
+            cn, mu, log_pi = get_major_cn_prior(
+                row['major_cn'],
+                row['minor_cn'],
+                row['normal_cn'],
+                error_rate=error_rate
+            )
+
+            data_point = DataPoint(a, b, cn, mu, log_pi)
+
+            mut_data.append(convert_data_to_discrete_grid(data_point, grid_size, tumour_content))
+
+        data[name] = np.vstack(mut_data)
+
+    mutations = list(data.keys())
+
+    data = np.stack(list(data.values()), axis=0)
+
+    return data, mutations, samples
+
+
 def load_data_from_file(file_name, error_rate=1e-3, grid_size=1000, perfect_prior=False, tumour_content=None):
     '''
     Given a PyClone input tsv formatted file, load the discretized grid of likelihoods.
@@ -107,12 +165,14 @@ def load_data_from_file(file_name, error_rate=1e-3, grid_size=1000, perfect_prio
 
             tumour_content = df['tumour_content'].iloc[0]
 
-            print 'Tumour content of {} detected in file'.format(tumour_content)
+            print('Tumour content of {} detected in file'.format(tumour_content))
 
         else:
             tumour_content = 1.0
 
     for _, row in df.iterrows():
+        name = row['mutation_id']
+
         a = row['ref_counts']
 
         b = row['var_counts']
@@ -175,19 +235,65 @@ def load_data_from_file(file_name, error_rate=1e-3, grid_size=1000, perfect_prio
 
         log_pi = log_normalize(np.array(log_pi, dtype=float))
 
-        data.append(DataPoint(a, b, cn, mu, log_pi))
+        data.append(DataPoint(name, a, b, cn, mu, log_pi))
 
-    return convert_data_to_discrete_grid(data, grid_size=grid_size, tumour_content=tumour_content)
+    final_data = []
+
+    for data_point in data:
+        final_data.append(
+            convert_data_to_discrete_grid(data_point, grid_size=grid_size, tumour_content=tumour_content)
+        )
+
+    final_data = np.vstack(final_data)
+
+    return final_data
 
 
-def convert_data_to_discrete_grid(data, grid_size=1000, tumour_content=1.0):
-    log_ll = np.zeros((len(data), grid_size))
+def convert_data_to_discrete_grid(data_point, grid_size=1000, tumour_content=1.0):
+    log_ll = np.zeros(grid_size)
 
-    for i, data_point in enumerate(data):
-        for j, cellular_prevalence in enumerate(np.linspace(0, 1, grid_size)):
-            log_ll[i, j] = compute_log_p_sample(data_point, cellular_prevalence, tumour_content)
+    for i, cellular_prevalence in enumerate(np.linspace(0, 1, grid_size)):
+        log_ll[i] = compute_log_p_sample(data_point, cellular_prevalence, tumour_content)
 
     return log_ll
+
+
+def get_major_cn_prior(major_cn, minor_cn, normal_cn, error_rate=1e-3):
+    total_cn = major_cn + minor_cn
+
+    cn = []
+
+    mu = []
+
+    log_pi = []
+
+    # Consider all possible mutational genotypes consistent with mutation before CN change
+    for x in range(1, major_cn + 1):
+        cn.append((normal_cn, normal_cn, total_cn))
+
+        mu.append((error_rate, error_rate, min(1 - error_rate, x / total_cn)))
+
+        log_pi.append(0)
+
+    # Consider mutational genotype of mutation before CN change if not already added
+    mutation_after_cn = (normal_cn, total_cn, total_cn)
+
+    if mutation_after_cn not in cn:
+        cn.append(mutation_after_cn)
+
+        mu.append((error_rate, error_rate, min(1 - error_rate, 1 / total_cn)))
+
+        log_pi.append(0)
+
+        assert len(set(cn)) == 2
+
+    cn = np.array(cn, dtype=int)
+
+    mu = np.array(mu, dtype=float)
+
+    log_pi = log_normalize(np.array(log_pi, dtype=float))
+
+    return cn, mu, log_pi
 
 
 @numba.jitclass([
@@ -232,7 +338,7 @@ def compute_log_p_sample(data, f, t):
 
         e_vaf /= norm_const
 
-        ll[c] = data.log_pi[c] + binomial_log_pdf(data.a + data.b, data.b, e_vaf)
+        ll[c] = data.log_pi[c] + beta_binomial_log_pdf(data.a + data.b, data.b, e_vaf, 200)
 
     return log_sum_exp(ll)
 
@@ -240,6 +346,15 @@ def compute_log_p_sample(data, f, t):
 @numba.jit(nopython=True)
 def binomial_log_likelihood(n, x, p):
     return x * np.log(p) + (n - x) * np.log(1 - p)
+
+
+@numba.jit(nopython=True)
+def beta_binomial_log_pdf(n, x, m, s):
+    a = m * s
+
+    b = s - a
+
+    return log_binomial_coefficient(n, x) + log_beta(a + x, b + n - x) - log_beta(a, b)
 
 
 @numba.jit(nopython=True)

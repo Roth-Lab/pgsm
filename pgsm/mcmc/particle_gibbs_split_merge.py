@@ -9,7 +9,8 @@ from pgsm.math_utils import discrete_rvs
 from pgsm.particle_utils import get_cluster_labels
 from pgsm.utils import relabel_clustering
 
-import pgsm
+import pgsm.smc.kernels
+import pgsm.smc.samplers
 
 
 class ParticleGibbsSplitMergeSampler(object):
@@ -81,9 +82,9 @@ class ParticleGibbsSplitMergeSampler(object):
         return relabel_clustering(clustering)
 
     def _sample_particle(self, particles_weights):
-        particles = particles_weights.keys()
+        particles = list(particles_weights.keys())
 
-        weights = particles_weights.values()
+        weights = list(particles_weights.values())
 
         particle_idx = discrete_rvs(weights)
 

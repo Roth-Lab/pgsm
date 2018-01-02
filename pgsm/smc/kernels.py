@@ -13,12 +13,10 @@ import random
 from pgsm.math_utils import exp_normalize, log_sum_exp
 from pgsm.particle_utils import get_constrained_path
 
-
 SplitMergeParticle = namedtuple(
     'SplitMergeParticle',
     ('block_idx', 'block_params', 'generation', 'log_w', 'parent_particle'),
 )
-
 
 AnnealedSplitMergeParticle = namedtuple(
     'AnnealedSplitMergeParticle',
@@ -65,7 +63,7 @@ class AbstractSplitMergKernel(object):
             log_q = self.get_log_q(data_point, parent_particle)
 
         if log_q_norm is None:
-            log_q_norm = log_sum_exp(np.array(log_q.values()))
+            log_q_norm = log_sum_exp(np.array(list(log_q.values())))
 
         return self._create_particle(block_idx, block_params, data_point, log_q, log_q_norm, parent_particle)
 
