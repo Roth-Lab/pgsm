@@ -1,0 +1,5 @@
+numba
+numpy
+pandas
+python >=3.6
+scipy
